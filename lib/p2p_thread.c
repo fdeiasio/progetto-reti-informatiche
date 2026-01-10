@@ -8,7 +8,6 @@ void* p2p_server_function(void* arg) {
 
     ServerConfig config = {
         .port = user->port,
-        .new_client_handler = NULL,
         .client_handler = NULL,
         .stdin_handler = NULL,
     };

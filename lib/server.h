@@ -24,10 +24,13 @@ struct Server {
 struct ServerConfig {
     in_port_t port;
 
-    FDHandler new_client_handler;
     FDHandler client_handler;
     FDHandler stdin_handler;
 };
+
+int server_add_fd(Server* server, int fd);
+
+int server_remove_fd(Server* server, int fd);
 
 extern Server* server_create(ServerConfig config);
 

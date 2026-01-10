@@ -7,7 +7,7 @@
 void handle_message(Server* server, int fd, Message msg) {
     switch (msg.type) {
         case MSG_HELLO:
-            fprintf(stdout, "Received HELLO message from client %d\n", fd);
+            fprintf(stdout, "Received HELLO message from client %d\n", msg.message);
             break;
 
         default:
@@ -22,9 +22,10 @@ void handle_client(Server* server, void* args) {
     Message msg;
     ssize_t bytes_received = receive_message(fd, &msg);
     if (bytes_received <= 0) {
-        fprintf(stderr, "Error: Could not receive message from client.\n");
+        fprintf(stderr, "Client disconnected.\n");
 
         close(fd);
+        server_remove_fd(server, fd);
         return;
     }
 
@@ -34,7 +35,6 @@ void handle_client(Server* server, void* args) {
 int main() {
     ServerConfig config = {
         .port = SERVER_PORT,
-        .new_client_handler = NULL,
         .client_handler = handle_client,
         .stdin_handler = NULL,
     };

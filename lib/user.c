@@ -43,7 +43,7 @@ void user_connect_to_server(User* user, const char* server_ip, in_port_t server_
 void user_send_server_hello(User* user) {
     Message msg = {
         .type = MSG_HELLO,
-        .message = 0,
+        .message = user->port,
     };
 
     if (send_message(user->server_socket, msg) < 0) {

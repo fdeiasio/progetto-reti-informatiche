@@ -14,5 +14,6 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <string.h>
+#include <errno.h>
 
 #endif //PCH_H

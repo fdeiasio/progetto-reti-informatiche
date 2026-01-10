@@ -1,12 +1,9 @@
 #include "pch.h"
 #include "server.h"
 
-int active = 1;
-static void sighandler(int sig) {          
-    (void) sig;                      
-    printf("Shutting down server...\n");   
-    active = 0;               
-} 
+void sighandler(int sig) {
+    (void) sig;
+}
 
 int server_add_fd(Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
@@ -75,9 +72,7 @@ Server* server_create(ServerConfig config) {
     FD_ZERO(&server->read_fds);
     server->max_fd = 0;
 
-    server->new_client_handler = config.new_client_handler 
-        ? config.new_client_handler 
-        : server_handle_new_client;
+    server->new_client_handler = server_handle_new_client;
 
     server->stdin_handler = config.stdin_handler;
     server->client_handler = config.client_handler;
@@ -122,7 +117,7 @@ void server_run(Server* server) {
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
 
-    while (active) {
+    while (1) {
         server->read_fds = server->master_set;
 
         struct timeval timeout = { 
@@ -132,6 +127,11 @@ void server_run(Server* server) {
 
         int activity = select(server->max_fd + 1, &server->read_fds, NULL, NULL, &timeout);
         if (activity < 0) {
+            if (errno == EINTR) {
+                printf("Shutting down server...\n");
+                break; 
+            }
+
             fprintf(stderr, "Error: select() failed.\n");
             break;
         }
