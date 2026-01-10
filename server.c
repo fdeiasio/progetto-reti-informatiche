@@ -16,6 +16,40 @@ static void sighandler(int sig) {
     active = 0;               
 } 
 
+int server_add_fd(Server* server, int fd) {
+    if (fd >= FD_SETSIZE) {
+        fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
+        return -1;
+    }
+
+    FD_SET(fd, &server->master_set);
+    if (fd > server->max_fd) {
+        server->max_fd = fd;
+    }
+
+    return 0;
+}
+
+void server_handle_new_client(Server* server, void* args) {
+    (void) args;
+
+    struct sockaddr_in client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+
+    int new_fd = accept(server->socket_fd, (struct sockaddr *)&client_addr, &addr_len);
+    if (new_fd < 0) {
+        fprintf(stderr, "Error: Failed to accept connection.\n");
+        return;
+    }
+
+    if (server_add_fd(server, new_fd) < 0) {
+        close(new_fd);
+        return;
+    }
+    
+    fprintf(stdout, "New client connected\n");
+}
+
 Server* server_create(ServerConfig config) {
     Server* server = (Server*)malloc(sizeof(Server));
     if (!server) {
@@ -32,7 +66,10 @@ Server* server_create(ServerConfig config) {
     FD_ZERO(&server->read_fds);
     server->max_fd = 0;
 
-    server->new_client_handler = config.new_client_handler;
+    server->new_client_handler = config.new_client_handler 
+        ? config.new_client_handler 
+        : server_handle_new_client;
+
     server->stdin_handler = config.stdin_handler;
     server->client_handler = config.client_handler;
 
@@ -67,20 +104,6 @@ int server_start(Server* server) {
     }
 
     printf("Server started on port %d\n", ntohs(server->addr.sin_port));
-
-    return 0;
-}
-
-int server_add_fd(Server* server, int fd) {
-    if (fd >= FD_SETSIZE) {
-        fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
-        return -1;
-    }
-
-    FD_SET(fd, &server->master_set);
-    if (fd > server->max_fd) {
-        server->max_fd = fd;
-    }
 
     return 0;
 }

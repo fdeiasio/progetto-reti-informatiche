@@ -9,11 +9,17 @@
 #include <sys/select.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+
+#include "p2p_thread.h"
 
 #define MIN_PORT 5679
 #define MAX_PORT 65535
 
 #define SERVER_PORT 5678
+
+pthread_t p2p_server_thread;
+pthread_t worker_thread;
 
 enum { 
     STATE_CONNECTING,
@@ -43,6 +49,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error: Invalid port number.\n");
         exit(1);
     }
+
+    pthread_create(&p2p_server_thread, NULL, p2p_server_function, &port);
+
     /*
     int p2p_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (p2p_socket < 0) {
