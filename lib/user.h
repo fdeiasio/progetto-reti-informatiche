@@ -12,6 +12,7 @@ typedef enum {
     STATE_SENDING_RUL,
     STATE_WAITING_ACK,
     STATE_DISCONNECTING,
+    STATE_SHUTTING_DOWN,
 
     NUM_STATES,
 } UserState;

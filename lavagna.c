@@ -48,6 +48,4 @@ int main() {
     server_run(lavagna);
 
     server_shutdown(lavagna);
-    
-    return 0;
 }

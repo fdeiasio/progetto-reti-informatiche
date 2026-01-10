@@ -21,7 +21,7 @@ void* p2p_server_function(void* arg) {
     server_run(peer);
 
     server_shutdown(peer);
-    user->state = STATE_DISCONNECTING;
+    user->state = STATE_SHUTTING_DOWN;
     
     pthread_exit(0);
 }

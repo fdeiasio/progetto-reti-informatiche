@@ -37,12 +37,11 @@ int main(int argc, char *argv[]) {
 
             case STATE_DISCONNECTING:
                 break;
+
+            case STATE_SHUTTING_DOWN:
+                break;
         }
     }
-
-
-
-    
     
     // Sending initial hello message
 
@@ -89,5 +88,7 @@ int main(int argc, char *argv[]) {
 
     close(server_fd);
     */
+
+    
     return 0;
 }

@@ -1,8 +1,11 @@
 #include "pch.h"
 #include "server.h"
 
-void sighandler(int sig) {
+static int running = 1;
+static void sighandler(int sig) {
     (void) sig;
+
+    running = 0;
 }
 
 int server_add_fd(Server* server, int fd) {
@@ -117,7 +120,7 @@ void server_run(Server* server) {
     signal(SIGINT, sighandler);
     signal(SIGTERM, sighandler);
 
-    while (1) {
+    while (running) {
         server->read_fds = server->master_set;
 
         struct timeval timeout = { 
@@ -128,7 +131,6 @@ void server_run(Server* server) {
         int activity = select(server->max_fd + 1, &server->read_fds, NULL, NULL, &timeout);
         if (activity < 0) {
             if (errno == EINTR) {
-                printf("Shutting down server...\n");
                 break; 
             }
 
@@ -159,7 +161,14 @@ void server_run(Server* server) {
     }
 }
 
+void server_stop(Server* server) {
+    running = 0;
+}
+
+
 void server_shutdown(Server* server) {
+    fprintf(stdout, "\nShutting down server...\n");
+
     for (int fd = 0; fd <= server->max_fd; fd++) {
         if (FD_ISSET(fd, &server->master_set)) {
             close(fd);
