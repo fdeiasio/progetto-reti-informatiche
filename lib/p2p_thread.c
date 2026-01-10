@@ -1,11 +1,13 @@
+#include "pch.h"
 #include "server.h"
 #include "p2p_thread.h"
+#include "user.h"
 
 void* p2p_server_function(void* arg) {
-    in_port_t port = *(in_port_t*) arg;
+    User* user = (User*) arg;
 
     ServerConfig config = {
-        .port = port,
+        .port = user->port,
         .new_client_handler = NULL,
         .client_handler = NULL,
         .stdin_handler = NULL,
@@ -20,6 +22,7 @@ void* p2p_server_function(void* arg) {
     server_run(peer);
 
     server_shutdown(peer);
-
+    user->state = STATE_DISCONNECTING;
+    
     pthread_exit(0);
 }

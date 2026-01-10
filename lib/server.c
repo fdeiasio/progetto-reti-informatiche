@@ -1,12 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
+#include "pch.h"
 #include "server.h"
 
 int active = 1;
@@ -25,6 +17,23 @@ int server_add_fd(Server* server, int fd) {
     FD_SET(fd, &server->master_set);
     if (fd > server->max_fd) {
         server->max_fd = fd;
+    }
+
+    return 0;
+}
+
+int server_remove_fd(Server* server, int fd) {
+    if (fd >= FD_SETSIZE) {
+        fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
+        return -1;
+    }
+
+    FD_CLR(fd, &server->master_set);
+
+    if (fd == server->max_fd) {
+        while (server->max_fd >= 0 && !FD_ISSET(server->max_fd, &server->master_set)) {
+            server->max_fd--;
+        }
     }
 
     return 0;

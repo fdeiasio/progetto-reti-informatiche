@@ -1,8 +1,7 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include <netinet/in.h>
-#include <sys/select.h>
+#include "pch.h"
 
 typedef struct Server Server;
 typedef struct ServerConfig ServerConfig;
@@ -33,8 +32,6 @@ struct ServerConfig {
 extern Server* server_create(ServerConfig config);
 
 extern int server_start(Server* server);
-
-extern int server_add_fd(Server* server, int fd);
 
 extern void server_run(Server* server);
 
