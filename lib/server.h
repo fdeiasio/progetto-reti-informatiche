@@ -37,14 +37,12 @@ int server_remove_fd(Server* server, int fd);
 
 extern Server* server_create(ServerConfig config);
 
-extern int server_start(Server* server);
+extern int server_init(Server* server);
 
-extern void server_run(Server* server);
-
-extern void server_stop();
+extern int server_run(Server* server);
 
 extern void server_shutdown(Server* server);
 
-extern void server_bind_database(Server* server, void* database);
+extern void server_bind_database(Server* server, Database* database);
 
 #endif // SERVER_H

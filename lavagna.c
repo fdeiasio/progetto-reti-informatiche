@@ -6,6 +6,13 @@
 #define SERVER_PORT 5678
 #define MAX_USERS 100
 
+static int active = 1;
+void signal_handler(int signum) {
+    (void)signum;
+    
+    active = 0;
+}
+
 void handle_message(Server* server, int fd, Message msg) {
     switch (msg.type) {
         case MSG_HELLO:
@@ -57,14 +64,18 @@ int main() {
 
     server_bind_database(lavagna, db);
 
-    if (server_start(lavagna) < 0) {
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    if (server_init(lavagna) < 0) {
         server_shutdown(lavagna);
         database_cleanup(db);
         exit(1);
     }
 
-    server_run(lavagna);
-    
+    while(active && server_run(lavagna) == 0)
+        ;
+
     server_shutdown(lavagna);
     database_cleanup(db);
     exit(0);

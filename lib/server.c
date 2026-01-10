@@ -1,13 +1,6 @@
 #include "pch.h"
 #include "server.h"
 
-static int running = 1;
-static void sighandler(int sig) {
-    (void) sig;
-
-    running = 0;
-}
-
 int server_add_fd(Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
@@ -85,7 +78,7 @@ Server* server_create(ServerConfig config) {
     return server;
 }
 
-int server_start(Server* server) {
+int server_init(Server* server) {
     server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->socket_fd < 0) {
         fprintf(stderr, "Error: Could not create socket.\n");
@@ -104,6 +97,8 @@ int server_start(Server* server) {
         return -1;
     }
 
+    signal(SIGPIPE, SIG_IGN);
+    
     server_add_fd(server, server->socket_fd);
 
     if (server->stdin_handler) {
@@ -115,56 +110,47 @@ int server_start(Server* server) {
     return 0;
 }
 
-void server_run(Server* server) {
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGINT, sighandler);
-    signal(SIGTERM, sighandler);
+int server_run(Server* server) {
+    server->read_fds = server->master_set;
 
-    while (running) {
-        server->read_fds = server->master_set;
+    struct timeval timeout = { 
+        .tv_sec = 0, 
+        .tv_usec = 100000 
+    };
 
-        struct timeval timeout = { 
-            .tv_sec = 1, 
-            .tv_usec = 0 
-        };
-
-        int activity = select(server->max_fd + 1, &server->read_fds, NULL, NULL, &timeout);
-        if (activity < 0) {
-            if (errno == EINTR) {
-                break; 
-            }
-
-            fprintf(stderr, "Error: select() failed.\n");
-            break;
+    int activity = select(server->max_fd + 1, &server->read_fds, NULL, NULL, &timeout);
+    if (activity < 0) {
+        if (errno == EINTR) {
+            return -1; 
         }
 
-        if (activity == 0) {
-            continue; 
+        fprintf(stderr, "Error: select() failed.\n");
+        return -1;
+    }
+
+    if (activity == 0) {
+        return 0; 
+    }
+
+    for (int fd = 0; fd <= server->max_fd; fd++) {
+        if (!FD_ISSET(fd, &server->read_fds)) {
+            continue;
         }
 
-        for (int fd = 0; fd <= server->max_fd; fd++) {
-            if (!FD_ISSET(fd, &server->read_fds)) {
-                continue;
-            }
-
-            if (fd == server->socket_fd) {
-                server->new_client_handler(server, NULL);
-            }
-            else if (fd == STDIN_FILENO) {
-                server->stdin_handler(server, NULL);
-            }
-            else {
-                int arg = fd;
-                server->client_handler(server, &arg);
-            }
+        if (fd == server->socket_fd) {
+            server->new_client_handler(server, NULL);
+        }
+        else if (fd == STDIN_FILENO) {
+            server->stdin_handler(server, NULL);
+        }
+        else {
+            int arg = fd;
+            server->client_handler(server, &arg);
         }
     }
-}
 
-void server_stop() {
-    running = 0;
+    return 0;
 }
-
 
 void server_shutdown(Server* server) {
     fprintf(stdout, "\nShutting down server...\n");
@@ -174,6 +160,7 @@ void server_shutdown(Server* server) {
             close(fd);
         }
     }
+
     free(server);
 }
 

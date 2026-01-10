@@ -17,12 +17,16 @@ void* p2p_server_function(void* arg) {
         pthread_exit(0);
     }
 
-    if (server_start(peer) < 0) {
-        client_update_state(client, STATE_CONNECTING);
-        server_run(peer);
+    if (server_init(peer) < 0) {
+        server_shutdown(peer);
+        client_update_state(client, STATE_SHUTTING_DOWN);
+        pthread_exit(0);
     }
 
-    server_run(peer);
+    client_update_state(client, STATE_CONNECTING);
+    
+    while (client->state != STATE_DISCONNECTING && server_run(peer) == 0)
+        ;
 
     server_shutdown(peer);
     client_update_state(client, STATE_SHUTTING_DOWN);

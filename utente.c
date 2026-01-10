@@ -6,6 +6,13 @@
 #define MIN_PORT 5679
 #define SERVER_PORT 5678
 
+static int running = 1;
+void signal_handler(int signum) {
+    (void)signum;
+    
+    running = 0;
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <port>\n", argv[0]);
@@ -16,13 +23,16 @@ int main(int argc, char *argv[]) {
     if (port < MIN_PORT) {
         fprintf(stderr, "Error: Invalid port number.\n");
         exit(1);
-    }
+    }  
+
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
 
     Client* client = client_create(port);
 
     client_start_p2p(client, p2p_server_function);
 
-    while (client->state != STATE_SHUTTING_DOWN) {
+    while (running && client->state != STATE_SHUTTING_DOWN) {
         switch (client->state) {
             case STATE_STARTING_P2P:
                 // Waiting for P2P server to start
@@ -36,64 +46,13 @@ int main(int argc, char *argv[]) {
                 break;
 
             case STATE_IDLE:
-                // Handle idle state
-                break;
-
-            case STATE_DISCONNECTING:
-                server_stop();
-                break;
-
-            case STATE_SHUTTING_DOWN:
                 break;
         }
     }
+
+    client_update_state(client, STATE_DISCONNECTING);
+
+    pthread_join(client->p2p_server_thread, NULL);
     
-    // Sending initial hello message
-
-
-   /*
-
-    // Set up signal handlers
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGINT, sighandler);
-    signal(SIGTERM, sighandler);
-
-    state = STATE_IDLE;
-
-    while (state != STATE_DISCONNECTING) {
-        read_fds = master_set;
-        
-        int activity = select(max_fd + 1, &read_fds, NULL, NULL, NULL);
-        if (activity < 0) {
-            fprintf(stderr, "Error: select() failed.\n");
-            close(server_fd);
-            exit(1);
-        }
-
-        if (activity == 0) {
-            continue; 
-        }
-
-        for (int fd = 0; fd < max_fd; fd++) {
-            if (!FD_ISSET(fd, &read_fds)) {
-                continue;
-            }
-
-            if (fd == server_fd) {
-
-            }
-            else if (fd == STDIN_FILENO) {
-
-            }
-            else {
-
-            }
-        }
-    }
-
-    close(server_fd);
-    */
-
-    
-    return 0;
+    free(client);
 }
