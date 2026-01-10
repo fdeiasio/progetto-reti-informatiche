@@ -4,12 +4,11 @@ CFLAGS  := -Wall -Wextra -pedantic -std=c11
 LDFLAGS :=
 
 # Source files
-COMMON_SRC := lib/server.c lib/p2p_thread.c lib/messaging.c lib/user.c
+COMMON_SRC := lib/server.c lib/p2p_thread.c lib/protocol.c lib/client.c
 COMMON_OBJ := $(COMMON_SRC:.c=.o)
 
 # Headers (for dependency tracking)
-HEADERS := lib/server.h lib/p2p_thread.h lib/messaging.h lib/user.h lib/pch.h
-
+HEADERS := lib/server.h lib/p2p_thread.h lib/protocol.h lib/client.h lib/pch.h
 # Executables
 TARGETS := utente lavagna
 
@@ -31,6 +30,7 @@ lavagna: lavagna.o $(COMMON_OBJ)
 # Clean build artifacts
 clean:
 	rm -f $(TARGETS) *.o
+	rm -f lib/*.o
 
 # Run the server
 run-server: lavagna

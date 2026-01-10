@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "messaging.h"
+#include "protocol.h"
 
 ssize_t send_message(int socket, Message msg) {
     uint32_t buffer[2];

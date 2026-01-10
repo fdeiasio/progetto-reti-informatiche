@@ -1,7 +1,7 @@
 #include "lib/pch.h"
 #include "lib/p2p_thread.h"
-#include "lib/messaging.h"
-#include "lib/user.h"
+#include "lib/protocol.h"
+#include "lib/client.h"
 
 #define MIN_PORT 5679
 #define SERVER_PORT 5678
@@ -18,17 +18,21 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    User* user = user_create(port);
+    Client* client = client_create(port);
 
-    while (user->state != STATE_DISCONNECTING) {
-        switch (user->state) {
+    client_start_p2p(client, p2p_server_function);
+
+    while (client->state != STATE_SHUTTING_DOWN) {
+        switch (client->state) {
+            case STATE_STARTING_P2P:
+                // Waiting for P2P server to start
+                break;
+
             case STATE_CONNECTING:
-                user_connect_to_server(user, "127.0.0.1", SERVER_PORT);
-                user_send_server_hello(user);
+                client_connect_to_server(client, "127.0.0.1", SERVER_PORT);
+                client_send_server_hello(client);
 
-                user_start_p2p(user, p2p_server_function);
-
-                user->state = STATE_IDLE;
+                client_update_state(client, STATE_IDLE);
                 break;
 
             case STATE_IDLE:
@@ -36,6 +40,7 @@ int main(int argc, char *argv[]) {
                 break;
 
             case STATE_DISCONNECTING:
+                server_stop();
                 break;
 
             case STATE_SHUTTING_DOWN:

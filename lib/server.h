@@ -2,6 +2,7 @@
 #define SERVER_H
 
 #include "pch.h"
+#include "database.h"
 
 typedef struct Server Server;
 typedef struct ServerConfig ServerConfig;
@@ -11,6 +12,8 @@ typedef void (*FDHandler)(Server*, void*);
 struct Server {     
     int socket_fd;
     struct sockaddr_in addr;
+
+    Database* database;
 
     fd_set master_set;
     fd_set read_fds;
@@ -38,6 +41,10 @@ extern int server_start(Server* server);
 
 extern void server_run(Server* server);
 
+extern void server_stop();
+
 extern void server_shutdown(Server* server);
+
+extern void server_bind_database(Server* server, void* database);
 
 #endif // SERVER_H

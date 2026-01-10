@@ -63,13 +63,15 @@ Server* server_create(ServerConfig config) {
     Server* server = (Server*)malloc(sizeof(Server));
     if (!server) {
         fprintf(stderr, "Error: Could not allocate memory for server.\n");
-        exit(1);
+        return NULL;
     }
 
     server->socket_fd = -1;
     server->addr.sin_family = AF_INET;
     server->addr.sin_port = htons(config.port);
     server->addr.sin_addr.s_addr = INADDR_ANY;
+
+    server->database = NULL;
 
     FD_ZERO(&server->master_set);
     FD_ZERO(&server->read_fds);
@@ -102,9 +104,7 @@ int server_start(Server* server) {
         return -1;
     }
 
-    if (server->new_client_handler) {
-        server_add_fd(server, server->socket_fd);
-    }
+    server_add_fd(server, server->socket_fd);
 
     if (server->stdin_handler) {
         server_add_fd(server, STDIN_FILENO);
@@ -161,7 +161,7 @@ void server_run(Server* server) {
     }
 }
 
-void server_stop(Server* server) {
+void server_stop() {
     running = 0;
 }
 
@@ -175,4 +175,8 @@ void server_shutdown(Server* server) {
         }
     }
     free(server);
+}
+
+void server_bind_database(Server* server, Database* database) {
+    server->database = database;
 }

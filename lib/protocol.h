@@ -1,5 +1,5 @@
-#ifndef MESSAGING_H
-#define MESSAGING_H
+#ifndef PROTOCOL_H
+#define PROTOCOL_H
 
 #include "pch.h"
 
@@ -16,4 +16,4 @@ ssize_t send_message(int socket, Message msg);
 
 ssize_t receive_message(int socket, Message* msg);
 
-#endif // MESSAGING_H
+#endif // PROTOCOL_H
