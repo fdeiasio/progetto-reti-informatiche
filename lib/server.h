@@ -3,10 +3,9 @@
 
 #include "pch.h"
 
-typedef struct Server Server;
-typedef struct ServerConfig ServerConfig;
+struct Server;
 
-typedef int (*ServerCallback)(Server*, void*);
+typedef int (*ServerCallback)(struct Server*, void*);
 
 struct Server {     
     int socket_fd;
@@ -29,16 +28,16 @@ struct ServerConfig {
     ServerCallback stdin_handler;
 };
 
-int server_add_fd(Server* server, int fd);
+int server_add_fd(struct Server* server, int fd);
 
-int server_remove_fd(Server* server, int fd);
+int server_remove_fd(struct Server* server, int fd);
 
-extern Server* server_create(ServerConfig config);
+extern struct Server* server_create(struct ServerConfig config);
 
-extern int server_init(Server* server);
+extern int server_init(struct Server* server);
 
-extern int server_run(Server* server);
+extern int server_run(struct Server* server);
 
-extern void server_shutdown(Server* server);
+extern void server_shutdown(struct Server* server);
 
 #endif // SERVER_H

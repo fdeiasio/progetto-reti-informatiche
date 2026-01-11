@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "client.h"
 
-Client* client_create(ClientConfig config) {
-    Client* client = (Client*)malloc(sizeof(Client));
+struct Client* client_create(struct ClientConfig config) {
+    struct Client* client = (struct Client*)malloc(sizeof(struct Client));
     if (!client) {
         fprintf(stderr, "Error: Could not allocate memory for client.\n");
         exit(1);
@@ -30,17 +30,27 @@ Client* client_create(ClientConfig config) {
     return client;
 }
 
-void client_update_state(Client* client, ClientState new_state) {
+void client_update_state(struct Client* client, enum ClientState new_state) {
     pthread_mutex_lock(&client->state_mutex);
     client->state = new_state;
     pthread_mutex_unlock(&client->state_mutex);
 }
 
-void client_start_p2p(Client* client, void* p2p_server_function(void*)) {
-    pthread_create(&client->p2p_server_thread, NULL, p2p_server_function, client);
+void client_start_p2p(struct Client* client, void* p2p_server_function(void*)) {
+    if (pthread_create(&client->p2p_server_thread, NULL, p2p_server_function, client) != 0) {
+        fprintf(stderr, "Error: Could not create P2P server thread.\n");
+        exit(1);
+    }
 }
 
-void client_connect_to_server(Client* client) {
+void client_stop_p2p(struct Client* client) {
+    client_update_state(client, STATE_DISCONNECTING);
+    pthread_join(client->p2p_server_thread, NULL);
+}
+
+void client_connect_to_server(struct Client* client) {
+    fprintf(stdout, "Connecting to server...\n");
+
     client->server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client->server_socket < 0) {
         fprintf(stderr, "Error: Could not create socket.\n");
@@ -57,11 +67,18 @@ void client_connect_to_server(Client* client) {
     if (client->server_socket > client->max_fd) {
         client->max_fd = client->server_socket;
     }
-
-    fprintf(stdout, "Connected to server\n");
 }
 
-int client_listen(Client* client) {
+void client_disconnect_from_server(struct Client* client) {
+    if (client->server_socket != -1) {
+        close(client->server_socket);
+        FD_CLR(client->server_socket, &client->master_set);
+        client->server_socket = -1;
+        
+    }
+}
+
+int client_listen(struct Client* client) {
     client->read_fds = client->master_set;
 
     struct timeval timeout = {
@@ -90,4 +107,6 @@ int client_listen(Client* client) {
             return -1;
         }
     }
+
+    return 0;
 }

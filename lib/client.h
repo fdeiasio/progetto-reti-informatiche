@@ -3,12 +3,11 @@
 
 #include "pch.h"
 
-typedef struct Client Client;
-typedef struct ClientConfig ClientConfig;
+struct Client;
 
-typedef int (*ClientCallback)(Client*);
+typedef int (*ClientCallback)(struct Client*);
 
-typedef enum {
+enum ClientState{
     STATE_STARTING_P2P,
     STATE_CONNECTING,
     STATE_IDLE,
@@ -20,12 +19,12 @@ typedef enum {
     STATE_SHUTTING_DOWN,
 
     NUM_STATES,
-} ClientState;
+};
 
 struct Client {
     in_port_t port;
 
-    ClientState state;
+    enum ClientState state;
     pthread_mutex_t state_mutex;
 
     int server_socket;
@@ -52,14 +51,16 @@ struct ClientConfig {
     ClientCallback stdin_handler;
 };
 
-extern Client* client_create(ClientConfig config);
+extern struct Client* client_create(struct ClientConfig config);
 
-extern void client_update_state(Client* client, ClientState new_state);
+extern void client_update_state(struct Client* client, enum ClientState new_state);
 
-extern void client_start_p2p(Client* client, void* p2p_server_function(void*));
+extern void client_start_p2p(struct Client* client, void* p2p_server_function(void*));
+extern void client_stop_p2p(struct Client* client);
 
-extern void client_connect_to_server(Client* client);
+extern void client_connect_to_server(struct Client* client);
 
-extern int client_listen(Client* client);
+extern void client_disconnect_from_server(struct Client* client);
+extern int client_listen(struct Client* client);
 
 #endif // CLIENT_H

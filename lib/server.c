@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "server.h"
 
-int server_add_fd(Server* server, int fd) {
+int server_add_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
@@ -15,7 +15,7 @@ int server_add_fd(Server* server, int fd) {
     return 0;
 }
 
-int server_remove_fd(Server* server, int fd) {
+int server_remove_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
@@ -33,8 +33,8 @@ int server_remove_fd(Server* server, int fd) {
     return 0;
 }
 
-Server* server_create(ServerConfig config) {
-    Server* server = (Server*)malloc(sizeof(Server));
+struct Server* server_create(struct ServerConfig config) {
+    struct Server* server = (struct Server*)malloc(sizeof(struct Server));
     if (!server) {
         fprintf(stderr, "Error: Could not allocate memory for server.\n");
         return NULL;
@@ -56,7 +56,7 @@ Server* server_create(ServerConfig config) {
     return server;
 }
 
-int server_init(Server* server) {
+int server_init(struct Server* server) {
     server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->socket_fd < 0) {
         fprintf(stderr, "Error: Could not create socket.\n");
@@ -88,7 +88,7 @@ int server_init(Server* server) {
     return 0;
 }
 
-int server_run(Server* server) {
+int server_run(struct Server* server) {
     server->read_fds = server->master_set;
 
     struct timeval timeout = { 
@@ -152,7 +152,7 @@ int server_run(Server* server) {
     return 0;
 }
 
-void server_shutdown(Server* server) {
+void server_shutdown(struct Server* server) {
     fprintf(stdout, "\nShutting down server...\n");
 
     for (int fd = 0; fd <= server->max_fd; fd++) {

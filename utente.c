@@ -14,9 +14,9 @@ void signal_handler(int signum) {
     running = 0;
 }
 
-int send_server_hello(Client* client) {
+int send_server_hello(struct Client* client) {
     in_port_t port_network = htons(client->port);
-    Message msg = {
+    struct Message msg = {
         .type = MSG_HELLO,
         .payload_length = sizeof(port_network),
         .payload = &port_network,
@@ -31,14 +31,27 @@ int send_server_hello(Client* client) {
     return 0;
 }
 
-int handle_message(Client* client, Message* msg) {
+int handle_stdin_message(struct Client* client, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO:
             send_server_hello(client);
-            return 0;
+            break;
 
         case MSG_QUIT:
             return -1;
+
+        case MSG_CREATE_CARD:
+            if (msg->payload_length == 0) {
+                fprintf(stderr, "Error: CREATE_CARD requires an argument.\n");
+                return 0;
+            }
+            if (send_message(client->server_socket, msg) < 0) {
+                fprintf(stderr, "Error: Could not send CREATE_CARD message to server.\n");
+                return 0;
+            }
+            
+            fprintf(stdout, "Sent CREATE_CARD message to server\n");
+            break;
 
         default:
             fprintf(stderr, "Error: Unknown message type.\n");
@@ -47,9 +60,9 @@ int handle_message(Client* client, Message* msg) {
     return 0;
 }
 
-int handle_stdin(Client* client) {
+int handle_stdin(struct Client* client) {
     char buffer[MAX_PAYLOAD_SIZE];
-    Message msg = {
+    struct Message msg = {
         .payload = buffer,
         .payload_length = MAX_PAYLOAD_SIZE,
     };
@@ -58,7 +71,7 @@ int handle_stdin(Client* client) {
         return 0;
     }
 
-    return handle_message(client, &msg);
+    return handle_stdin_message(client, &msg);
 }
 
 int main(int argc, char *argv[]) {
@@ -73,7 +86,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }  
 
-    ClientConfig config = {
+    struct ClientConfig config = {
         .client_port = port,
         .server_port = SERVER_PORT,
         .server_handler = NULL,
@@ -81,7 +94,7 @@ int main(int argc, char *argv[]) {
     };
     inet_pton(AF_INET, SERVER_IP, &config.server_ip);
 
-    Client* client = client_create(config);
+    struct Client* client = client_create(config);
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -111,12 +124,15 @@ int main(int argc, char *argv[]) {
                     client_update_state(client, STATE_DISCONNECTING);
                 }
                 break;
+
+            case STATE_DISCONNECTING:
+                // Wait for shutdown signal from p2p thread
+                break;
         }
     }
 
-    client_update_state(client, STATE_DISCONNECTING);
-
-    pthread_join(client->p2p_server_thread, NULL);
+    client_disconnect_from_server(client);
+    client_stop_p2p(client);
     
     free(client);
 }

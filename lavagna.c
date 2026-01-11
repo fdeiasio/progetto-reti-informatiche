@@ -13,7 +13,7 @@ void signal_handler(int signum) {
     active = 0;
 }
 
-int handle_new_client(Server* server, void* args) {
+int handle_new_client(struct Server* server, void* args) {
     int fd = *(int*)args;
     
     fprintf(stdout, "New client connected\n");
@@ -21,7 +21,7 @@ int handle_new_client(Server* server, void* args) {
     return 0;
 }
 
-int handle_client_message(Server* server, int fd, Message* msg) {
+int handle_client_message(struct Server* server, int fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO:
             fprintf(stdout, "Received HELLO message from user on port %d\n", 
@@ -29,7 +29,7 @@ int handle_client_message(Server* server, int fd, Message* msg) {
             );
 
             in_port_t user_port = ntohs(*(in_port_t*) msg->payload);
-            User new_user = {
+            struct User new_user = {
                 .fd = fd,
                 .port = user_port,
             };
@@ -38,6 +38,16 @@ int handle_client_message(Server* server, int fd, Message* msg) {
             database_print_users();
             break;
 
+        case MSG_CREATE_CARD:
+            fprintf(stdout, "Received CREATE_CARD message from user on port %d\n", 
+                database_get_port_from_fd(fd)
+            );
+
+            in_port_t user_id = database_get_port_from_fd(fd);
+            char* card_text = (char*) msg->payload;
+            database_create_card(user_id, card_text);
+            database_print_cards();
+            break;
         default:
             fprintf(stderr, "Error: Unknown message type from user %d\n", fd);
             break;
@@ -46,13 +56,13 @@ int handle_client_message(Server* server, int fd, Message* msg) {
     return 0;
 }
 
-int handle_client(Server* server, void* args) {
+int handle_client(struct Server* server, void* args) {
     int fd = *(int*) args;
 
     char buffer[MAX_PAYLOAD_SIZE];
     memset(buffer, 0, MAX_PAYLOAD_SIZE);
 
-    Message msg = {
+    struct Message msg = {
         .payload = buffer,
         .payload_length = MAX_PAYLOAD_SIZE,
     };
@@ -76,18 +86,28 @@ int handle_client(Server* server, void* args) {
     return handle_client_message(server, fd, &msg);
 }
 
-int handle_stdin_message(Server* server, Message* msg) {
+int handle_stdin_message(struct Server* server, struct Message* msg) {
     switch (msg->type) {
-        
+        case MSG_SHOW_UTENTI:
+            database_print_users();
+            break;
+
+        case MSG_SHOW_LAVAGNA:
+            database_print_cards();
+            break;
+
+        default:
+            fprintf(stderr, "Error: Unknown command.\n");
+            break;
     }
     return 0;
 }
 
-int handle_stdin(Server* server, void* args) {
+int handle_stdin(struct Server* server, void* args) {
     (void) args;
 
     char buffer[MAX_PAYLOAD_SIZE];
-    Message msg = {
+    struct Message msg = {
         .payload = buffer,
         .payload_length = MAX_PAYLOAD_SIZE,
     };
@@ -100,20 +120,20 @@ int handle_stdin(Server* server, void* args) {
 }
 
 int main() {
-    DatabaseConfig db_config = {
+    struct DatabaseConfig db_config = {
         .max_users = MAX_USERS,
     }; 
     if (database_init(db_config) < 0) {
         exit(1);
     }
 
-    ServerConfig config = {
+    struct ServerConfig config = {
         .port = SERVER_PORT,
         .new_client_handler = handle_new_client,
         .client_handler = handle_client,
         .stdin_handler = handle_stdin,
     };
-    Server* lavagna = server_create(config);
+    struct Server* lavagna = server_create(config);
     if (!lavagna) {
         database_cleanup();
         exit(1);
