@@ -58,27 +58,27 @@ extern int database_remove_user(in_port_t user_id);
 
 extern int database_get_num_users();
 
-extern void database_get_user_list(in_port_t* user_ports, int max_users);
+extern int database_get_user_list(in_port_t* user_ports, int max_users);
 
 extern int database_get_next_user_port();
 
-extern int database_get_user_from_port(in_port_t user_id);
+extern void database_reset_user_iterator();
 
 extern int database_get_port_from_fd(int fd);
 
 extern void database_print_users();
 
-extern int database_create_card(in_port_t user_id, const char* text);
+extern int database_create_card(const char* text);
 
-extern void database_card_doing(int card_id, in_port_t user_id);
+extern int database_card_doing(int card_id, in_port_t user_id);
 
-extern void database_card_done(int card_id);
+extern int database_card_done(int card_id);
 
-extern void database_card_todo(int card_id);
+extern int database_card_todo(int card_id);
 
 extern int database_get_next_todo_card();
 
-extern void database_card_get_text(int card_id, char* buffer, size_t buffer_size);
+extern int database_card_get_text(int card_id, char* buffer, size_t buffer_size);
 
 extern void database_print_cards();
 #endif // DATABASE_H

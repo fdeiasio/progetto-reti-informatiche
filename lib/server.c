@@ -66,12 +66,14 @@ int server_init(struct Server* server) {
     if (bind(server->socket_fd, (struct sockaddr *)&server->addr, sizeof(server->addr)) < 0) {
         fprintf(stderr, "Error: Could not bind socket.\n");
         close(server->socket_fd);
+        server->socket_fd = -1;
         return -1;
     }
 
     if (listen(server->socket_fd, 10) < 0) {
         fprintf(stderr, "Error: Could not listen on socket.\n");
         close(server->socket_fd);
+        server->socket_fd = -1;
         return -1;
     }
 
@@ -83,7 +85,7 @@ int server_init(struct Server* server) {
         server_add_fd(server, STDIN_FILENO);
     }
 
-    printf("Server started on port %d\n", ntohs(server->addr.sin_port));
+    fprintf(stdout, "Server started on port %d\n", ntohs(server->addr.sin_port));
 
     return 0;
 }
@@ -153,10 +155,14 @@ int server_run(struct Server* server) {
 }
 
 void server_shutdown(struct Server* server) {
+    if (!server) {
+        return;
+    }
+
     fprintf(stdout, "\nShutting down server...\n");
 
     for (int fd = 0; fd <= server->max_fd; fd++) {
-        if (FD_ISSET(fd, &server->master_set)) {
+        if (FD_ISSET(fd, &server->master_set) && fd != STDIN_FILENO) {
             close(fd);
         }
     }

@@ -6,7 +6,8 @@
 #define SERVER_PORT 5678
 #define MAX_USERS 100
 
-static int active = 1;
+static volatile sig_atomic_t active = 1;
+
 void signal_handler(int signum) {
     (void)signum;
     
@@ -14,6 +15,7 @@ void signal_handler(int signum) {
 }
 
 void send_user_list(struct Server* server, int fd) {
+    (void)server;
     int num_users = database_get_num_users();
 
     in_port_t* user_ports = (in_port_t*)malloc(num_users * sizeof(in_port_t));
@@ -22,14 +24,14 @@ void send_user_list(struct Server* server, int fd) {
         return;
     }
 
-    database_get_user_list(user_ports, num_users);
-    for (int i = 0; i < num_users; i++) {
+    int count = database_get_user_list(user_ports, num_users);
+    for (int i = 0; i < count; i++) {
         user_ports[i] = htons(user_ports[i]);
     }
     
     struct Message msg = {
         .type = MSG_SEND_USER_LIST,
-        .payload_length = database_get_num_users() * sizeof(in_port_t),
+        .payload_length = count * sizeof(in_port_t),
         .payload = user_ports,
     };
 
@@ -38,8 +40,6 @@ void send_user_list(struct Server* server, int fd) {
 
     fprintf(stdout, "Sent user list to client\n");
 }
-
-
 
 int handle_new_client(struct Server* server, void* args) {
     int fd = *(int*)args;
@@ -51,33 +51,33 @@ int handle_new_client(struct Server* server, void* args) {
 
 int handle_client_message(struct Server* server, int fd, struct Message* msg) {
     switch (msg->type) {
-        case MSG_HELLO:
-            fprintf(stdout, "Received HELLO message from user on port %d\n", 
-                ntohs(*(in_port_t*) msg->payload)
-            );
-
+        case MSG_HELLO: {
             in_port_t user_port = ntohs(*(in_port_t*) msg->payload);
+            fprintf(stdout, "Received HELLO message from user on port %d\n", user_port);
+
             struct User new_user = {
                 .fd = fd,
                 .port = user_port,
             };
 
-            database_add_user(&new_user);
+            if (database_add_user(&new_user) < 0) {
+                fprintf(stderr, "Error: Could not add user to database.\n");
+            }
             database_print_users();
-
             break;
+        }
 
-        case MSG_CREATE_CARD:
-            fprintf(stdout, "Received CREATE_CARD message from user on port %d\n", 
-                database_get_port_from_fd(fd)
-            );
+        case MSG_CREATE_CARD: {
+            int user_port = database_get_port_from_fd(fd);
+            fprintf(stdout, "Received CREATE_CARD message from user on port %d\n", user_port);
 
-            in_port_t user_id = database_get_port_from_fd(fd);
             char* card_text = (char*) msg->payload;
-            database_create_card(user_id, card_text);
+            if (database_create_card(card_text) < 0) {
+                fprintf(stderr, "Error: Could not create card.\n");
+            }
             database_print_cards();
-
             break;
+        }
 
         case MSG_REQUEST_USER_LIST:
             fprintf(stdout, "Received REQUEST_USER_LIST message from user on port %d\n", 

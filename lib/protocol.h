@@ -25,6 +25,7 @@ struct Message {
     uint32_t payload_length;
     void* payload;
 };
+
 ssize_t send_message(int socket, struct Message* msg);
 
 ssize_t receive_message(int socket, struct Message* msg);

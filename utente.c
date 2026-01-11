@@ -7,7 +7,8 @@
 #define SERVER_PORT 5678
 #define SERVER_IP "127.0.0.1"
 
-static int running = 1;
+static volatile sig_atomic_t running = 1;
+
 void signal_handler(int signum) {
     (void)signum;
     
@@ -85,16 +86,21 @@ int handle_stdin(struct Client* client) {
 
 int handle_server_message(struct Client* client, struct Message* msg) {
     switch (msg->type) {
-        case MSG_SEND_USER_LIST:
-            fprintf(stdout, "Recieved peer list from server:\n");
+        case MSG_SEND_USER_LIST: {
+            fprintf(stdout, "Received peer list from server:\n");
 
             int num_users = msg->payload_length / sizeof(in_port_t);
             in_port_t* user_ports = (in_port_t*)msg->payload;
 
-            for (int i = 0; i < num_users; i++) {
-                fprintf(stdout, "- User on port %d\n", ntohs(user_ports[i]));
+            if (num_users == 0) {
+                fprintf(stdout, "(no users)\n");
+            } else {
+                for (int i = 0; i < num_users; i++) {
+                    fprintf(stdout, "- User on port %d\n", ntohs(user_ports[i]));
+                }
             }
             break;
+        }
 
         default:
             fprintf(stderr, "Error: Unknown message type from server.\n");
@@ -186,6 +192,6 @@ int main(int argc, char *argv[]) {
     client_stop_p2p(client);
     
     client_destroy(client);
-    
+
     exit(0);
 }

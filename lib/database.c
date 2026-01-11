@@ -3,6 +3,79 @@
 
 struct Database database;
 
+/* ==================== Static Helper Functions ==================== */
+
+static void free_card_list(struct Card* head) {
+    while (head) {
+        struct Card* next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
+static void append_card(struct Card** head, struct Card* card) {
+    card->next = NULL;
+    if (*head == NULL) {
+        *head = card;
+    } else {
+        struct Card* current = *head;
+        while (current->next != NULL) {
+            current = current->next;
+        }
+        current->next = card;
+    }
+}
+
+static struct Card* remove_card_from_list(struct Card** head, int card_id) {
+    for (struct Card** curr = head; *curr != NULL; curr = &(*curr)->next) {
+        if ((*curr)->id == card_id) {
+            struct Card* card = *curr;
+            *curr = card->next;
+            card->next = NULL;
+            return card;
+        }
+    }
+    return NULL;
+}
+
+static struct Card* find_card_in_list(struct Card* head, int card_id) {
+    for (struct Card* curr = head; curr != NULL; curr = curr->next) {
+        if (curr->id == card_id) {
+            return curr;
+        }
+    }
+    return NULL;
+}
+
+static struct Card* database_find_card(int card_id) {
+    struct Database* db = &database;
+    struct Card* card;
+
+    card = find_card_in_list(db->lavagna.todo, card_id);
+    if (card) return card;
+
+    card = find_card_in_list(db->lavagna.doing, card_id);
+    if (card) return card;
+
+    card = find_card_in_list(db->lavagna.done, card_id);
+    return card;
+}
+
+static int database_get_user_from_port(in_port_t user_id) {
+    struct Database* db = &database;
+
+    for (int i = 0; i < db->num_users; i++) {
+        if (db->users[i].port == user_id) {
+            return i;
+        }
+    }
+
+    return -1; 
+}
+
+
+/* ==================== Database Initialization ==================== */
+
 int database_init(struct DatabaseConfig config) {
     struct Database* db = &database;
 
@@ -28,20 +101,21 @@ int database_init(struct DatabaseConfig config) {
 void database_cleanup() {
     struct Database* db = &database;
 
+    free_card_list(db->lavagna.todo);
+    free_card_list(db->lavagna.doing);
+    free_card_list(db->lavagna.done);
+
+    db->lavagna.todo = NULL;
+    db->lavagna.doing = NULL;
+    db->lavagna.done = NULL;
+    db->lavagna.num_cards = 0;
+
     free(db->users);
+    db->users = NULL;
+    db->num_users = 0;
+    db->max_users = 0;
 }
 
-int database_get_user_from_port(in_port_t user_id) {
-    struct Database* db = &database;
-
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].port == user_id) {
-            return i;
-        }
-    }
-
-    return -1; 
-}
 
 int database_get_port_from_fd(int fd) {
     struct Database* db = &database;
@@ -57,6 +131,11 @@ int database_get_port_from_fd(int fd) {
 
 int database_add_user(struct User* user) {
     struct Database* db = &database;
+
+    if (!user) {
+        fprintf(stderr, "Error: User pointer is NULL.\n");
+        return -1;
+    }
 
     if (db->num_users >= db->max_users) {
         fprintf(stderr, "Error: Database is full. Cannot add more users.\n");
@@ -92,22 +171,32 @@ int database_remove_user(in_port_t user_id) {
 }
 
 int database_get_num_users() {
-    struct Database* db = &database;
+    const struct Database* db = &database;
     return db->num_users;
 }
 
-void database_get_user_list(in_port_t* user_ports, int max_users) {
-    struct Database* db = &database;
+int database_get_user_list(in_port_t* user_ports, int max_users) {
+    const struct Database* db = &database;
+
+    if (!user_ports || max_users <= 0) {
+        return 0;
+    }
 
     int count = (db->num_users < max_users) ? db->num_users : max_users;
     for (int i = 0; i < count; i++) {
         user_ports[i] = db->users[i].port;
     }
+    return count;
+}
+
+static in_port_t last_chosen_port = 0;
+
+void database_reset_user_iterator() {
+    last_chosen_port = 0;
 }
 
 int database_get_next_user_port() {
     struct Database* db = &database;
-    static in_port_t last_chosen = 0;
 
     if (db->num_users == 0) {
         return -1;
@@ -120,15 +209,15 @@ int database_get_next_user_port() {
         }
     }
 
-    if (last_chosen == 0) {
-        last_chosen = db->users[min_port_index].port;
-        return last_chosen;
+    if (last_chosen_port == 0) {
+        last_chosen_port = db->users[min_port_index].port;
+        return last_chosen_port;
     }
 
     in_port_t next_port = 0;
     int found = 0;
     for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].port > last_chosen) {
+        if (db->users[i].port > last_chosen_port) {
             if (!found || db->users[i].port < next_port) {
                 next_port = db->users[i].port;
                 found = 1;
@@ -140,23 +229,32 @@ int database_get_next_user_port() {
         next_port = db->users[min_port_index].port;
     }
 
-    last_chosen = next_port;
+    last_chosen_port = next_port;
 
-    return last_chosen;
+    return last_chosen_port;
 }
 
 void database_print_users() {
-    struct Database* db = &database;
+    const struct Database* db = &database;
 
     fprintf(stdout, "==== Current Users in Database ====\n");
-    for (int i = 0; i < db->num_users; i++) {
-        fprintf(stdout, "> User %d: Port=%d\n", i + 1, db->users[i].port);
+    if (db->num_users == 0) {
+        fprintf(stdout, "> (no users)\n");
+    } else {
+        for (int i = 0; i < db->num_users; i++) {
+            fprintf(stdout, "> User %d: Port=%d\n", i + 1, db->users[i].port);
+        }
     }
     fprintf(stdout, "===================================\n");
 }
 
-int database_create_card(in_port_t user_id, const char* text)  {
+int database_create_card(const char* text) {
     struct Database* db = &database;
+
+    if (!text) {
+        fprintf(stderr, "Error: Card text is NULL.\n");
+        return -1;
+    }
 
     struct Card* new_card = (struct Card*)malloc(sizeof(struct Card));
     if (!new_card) {
@@ -170,103 +268,62 @@ int database_create_card(in_port_t user_id, const char* text)  {
     new_card->text[sizeof(new_card->text) - 1] = '\0';
     new_card->user = 0;
     new_card->timestamp = 0;
-    new_card->next = NULL;
 
-    if (db->lavagna.todo == NULL) {
-        db->lavagna.todo = new_card;
-    } 
-    else {
-        struct Card* current = db->lavagna.todo;
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = new_card;
-    }   
-    
+    append_card(&db->lavagna.todo, new_card);
     db->lavagna.num_cards++;
 
     return new_card->id;
 }
 
-void database_card_doing(int card_id, in_port_t user_id) {
+int database_card_doing(int card_id, in_port_t user_id) {
     struct Database* db = &database;
 
-    for (struct Card** curr = &db->lavagna.todo; *curr != NULL; curr = &(*curr)->next) {
-        if ((*curr)->id == card_id) {
-            struct Card* card = *curr;
-            *curr = card->next;
-
-            card->status = CARD_STATUS_DOING;
-            card->user = user_id;
-            if (db->lavagna.doing == NULL) {
-                db->lavagna.doing = card;
-            } 
-            else {
-                struct Card* current = db->lavagna.doing;
-                while (current->next != NULL) {
-                    current = current->next;
-                }
-                current->next = card;
-            }   
-
-            return;
-        }
-    }   
-}
-
-void database_card_done(int card_id) {
-    struct Database* db = &database;
-
-    for (struct Card** curr = &db->lavagna.doing; *curr != NULL; curr = &(*curr)->next) {
-        if ((*curr)->id == card_id) {
-            struct Card* card = *curr;
-            *curr = card->next;
-
-            card->status = CARD_STATUS_DONE;
-            if (db->lavagna.done == NULL) {
-                db->lavagna.done = card;
-            } 
-            else {
-                struct Card* current = db->lavagna.done;
-                while (current->next != NULL) {
-                    current = current->next;
-                }
-                current->next = card;
-            }   
-
-            return;
-        }
+    struct Card* card = remove_card_from_list(&db->lavagna.todo, card_id);
+    if (!card) {
+        fprintf(stderr, "Error: Card %d not found in TODO list.\n", card_id);
+        return -1;
     }
+
+    card->status = CARD_STATUS_DOING;
+    card->user = user_id;
+    append_card(&db->lavagna.doing, card);
+
+    return 0;
 }
 
-void database_card_todo(int card_id) {
+int database_card_done(int card_id) {
     struct Database* db = &database;
 
-    for (struct Card** curr = &db->lavagna.doing; *curr != NULL; curr = &(*curr)->next) {
-        if ((*curr)->id == card_id) {
-            struct Card* card = *curr;
-            *curr = card->next;
+    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
+    if (!card) {
+        fprintf(stderr, "Error: Card %d not found in DOING list.\n", card_id);
+        return -1;
+    }
 
-            card->status = CARD_STATUS_TODO;
-            card->user = 0;
-            if (db->lavagna.todo == NULL) {
-                db->lavagna.todo = card;
-            } 
-            else {
-                struct Card* current = db->lavagna.todo;
-                while (current->next != NULL) {
-                    current = current->next;
-                }
-                current->next = card;
-            }   
+    card->status = CARD_STATUS_DONE;
+    append_card(&db->lavagna.done, card);
 
-            return;
-        }
-    }   
+    return 0;
+}
+
+int database_card_todo(int card_id) {
+    struct Database* db = &database;
+
+    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
+    if (!card) {
+        fprintf(stderr, "Error: Card %d not found in DOING list.\n", card_id);
+        return -1;
+    }
+
+    card->status = CARD_STATUS_TODO;
+    card->user = 0;
+    append_card(&db->lavagna.todo, card);
+
+    return 0;
 }
 
 int database_get_next_todo_card() {
-    struct Database* db = &database;
+    const struct Database* db = &database;
 
     if (db->lavagna.todo == NULL) {
         return -1;
@@ -275,42 +332,32 @@ int database_get_next_todo_card() {
     return db->lavagna.todo->id;
 }
 
-void database_card_get_text(int card_id, char* buffer, size_t buffer_size) {
-    struct Database* db = &database;
-
-    for (struct Card* current = db->lavagna.todo; current != NULL; current = current->next) {
-        if (current->id == card_id) {
-            strncpy(buffer, current->text, buffer_size - 1);
-            buffer[buffer_size - 1] = '\0';
-            return;
-        }
+int database_card_get_text(int card_id, char* buffer, size_t buffer_size) {
+    if (!buffer || buffer_size == 0) {
+        return -1;
     }
 
-    for (struct Card* current = db->lavagna.doing; current != NULL; current = current->next) {
-        if (current->id == card_id) {
-            strncpy(buffer, current->text, buffer_size - 1);
-            buffer[buffer_size - 1] = '\0';
-            return;
-        }
+    struct Card* card = database_find_card(card_id);
+    if (!card) {
+        buffer[0] = '\0';
+        return -1;
     }
 
-    for (struct Card* current = db->lavagna.done; current != NULL; current = current->next) {
-        if (current->id == card_id) {
-            strncpy(buffer, current->text, buffer_size - 1);
-            buffer[buffer_size - 1] = '\0';
-            return;
-        }
-    }
-
-    buffer[0] = '\0'; 
+    strncpy(buffer, card->text, buffer_size - 1);
+    buffer[buffer_size - 1] = '\0';
+    return 0;
 }
+
 void database_print_cards() {
-    struct Database* db = &database;
+    const struct Database* db = &database;
 
     fprintf(stdout, "==================== Current Cards in Lavagna ====================\n");
 
-    struct Card* current = db->lavagna.todo;
+    const struct Card* current = db->lavagna.todo;
     fprintf(stdout, "-- TODO --\n");
+    if (!current) {
+        fprintf(stdout, "(empty)\n");
+    }
     while (current) {
         fprintf(stdout, "Card ID: %d\t User: %d\t Text: %s\n", current->id, current->user, current->text);
         current = current->next;
@@ -318,6 +365,9 @@ void database_print_cards() {
 
     current = db->lavagna.doing;
     fprintf(stdout, "-- DOING --\n");
+    if (!current) {
+        fprintf(stdout, "(empty)\n");
+    }
     while (current) {
         fprintf(stdout, "Card ID: %d\t User: %d\t Text: %s\n", current->id, current->user, current->text);
         current = current->next;
@@ -325,6 +375,9 @@ void database_print_cards() {
 
     current = db->lavagna.done;
     fprintf(stdout, "-- DONE --\n");
+    if (!current) {
+        fprintf(stdout, "(empty)\n");
+    }
     while (current) {
         fprintf(stdout, "Card ID: %d\t User: %d\t Text: %s\n", current->id, current->user, current->text);
         current = current->next;
