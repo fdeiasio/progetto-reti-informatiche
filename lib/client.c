@@ -1,18 +1,31 @@
 #include "pch.h"
-#include "protocol.h"
 #include "client.h"
 
-Client* client_create(in_port_t port) {
+Client* client_create(ClientConfig config) {
     Client* client = (Client*)malloc(sizeof(Client));
     if (!client) {
         fprintf(stderr, "Error: Could not allocate memory for client.\n");
         exit(1);
     }
 
-    client->port = port;
+    client->port = config.client_port;
+
     client->state = STATE_STARTING_P2P;
     pthread_mutex_init(&client->state_mutex, NULL);
+
     client->server_socket = -1;
+    client->server_addr.sin_family = AF_INET;
+    client->server_addr.sin_port = htons(config.server_port);
+    client->server_addr.sin_addr.s_addr = config.server_ip;
+
+    FD_ZERO(&client->master_set);
+    FD_ZERO(&client->read_fds);
+
+    FD_SET(STDIN_FILENO, &client->master_set);
+    client->max_fd = STDIN_FILENO;
+
+    client->server_handler = config.server_handler;
+    client->stdin_handler = config.stdin_handler;
 
     return client;
 }
@@ -27,16 +40,12 @@ void client_start_p2p(Client* client, void* p2p_server_function(void*)) {
     pthread_create(&client->p2p_server_thread, NULL, p2p_server_function, client);
 }
 
-void client_connect_to_server(Client* client, const char* server_ip, in_port_t server_port) {
+void client_connect_to_server(Client* client) {
     client->server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client->server_socket < 0) {
         fprintf(stderr, "Error: Could not create socket.\n");
         exit(1);
     }
-
-    client->server_addr.sin_family = AF_INET;
-    client->server_addr.sin_port = htons(server_port);
-    inet_pton(AF_INET, server_ip, &client->server_addr.sin_addr);
 
     if (connect(client->server_socket, (struct sockaddr *)&client->server_addr, sizeof(client->server_addr)) < 0) {
         fprintf(stderr, "Error: Could not connect to server.\n");
@@ -44,18 +53,41 @@ void client_connect_to_server(Client* client, const char* server_ip, in_port_t s
         exit(1);
     }
 
+    FD_SET(client->server_socket, &client->master_set);
+    if (client->server_socket > client->max_fd) {
+        client->max_fd = client->server_socket;
+    }
+
     fprintf(stdout, "Connected to server\n");
 }
 
-void client_send_server_hello(Client* client) {
-    Message msg = {
-        .type = MSG_HELLO,
-        .message = client->port,
+int client_listen(Client* client) {
+    client->read_fds = client->master_set;
+
+    struct timeval timeout = {
+        .tv_sec = 0,
+        .tv_usec = 100000,
     };
 
-    if (send_message(client->server_socket, msg) < 0) {
-        fprintf(stderr, "Error: Could not send HELLO message to server.\n");
-    } else {
-        fprintf(stdout, "Sent HELLO message to server\n");
+    int activity = select(client->max_fd + 1, &client->read_fds, NULL, NULL, &timeout);
+    if (activity < 0) {
+        if (errno == EINTR) {
+            return -1;
+        }
+
+        fprintf(stderr, "Error: select() failed.\n");
+        return -1;
+    }
+
+    if (FD_ISSET(STDIN_FILENO, &client->read_fds)) {
+        if (client->stdin_handler && client->stdin_handler(client) < 0) {
+            return -1;
+        }
+    }
+
+    if (FD_ISSET(client->server_socket, &client->read_fds)) {
+        if (client->server_handler && client->server_handler(client) < 0) {
+            return -1;
+        }
     }
 }

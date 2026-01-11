@@ -6,7 +6,7 @@
 typedef struct Server Server;
 typedef struct ServerConfig ServerConfig;
 
-typedef int (*FDHandler)(Server*, void*);
+typedef int (*ServerCallback)(Server*, void*);
 
 struct Server {     
     int socket_fd;
@@ -16,17 +16,17 @@ struct Server {
     fd_set read_fds;
     int max_fd;
 
-    FDHandler new_client_handler;
-    FDHandler client_handler;
-    FDHandler stdin_handler;
+    ServerCallback new_client_handler;
+    ServerCallback client_handler;
+    ServerCallback stdin_handler;
 };
 
 struct ServerConfig {
     in_port_t port;
 
-    FDHandler new_client_handler;
-    FDHandler client_handler;
-    FDHandler stdin_handler;
+    ServerCallback new_client_handler;
+    ServerCallback client_handler;
+    ServerCallback stdin_handler;
 };
 
 int server_add_fd(Server* server, int fd);
