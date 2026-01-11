@@ -4,8 +4,7 @@
 struct Client* client_create(struct ClientConfig config) {
     struct Client* client = (struct Client*)malloc(sizeof(struct Client));
     if (!client) {
-        fprintf(stderr, "Error: Could not allocate memory for client.\n");
-        exit(1);
+        return NULL;
     }
 
     client->port = config.client_port;
@@ -74,7 +73,13 @@ void client_disconnect_from_server(struct Client* client) {
         close(client->server_socket);
         FD_CLR(client->server_socket, &client->master_set);
         client->server_socket = -1;
-        
+    }
+}
+
+void client_destroy(struct Client* client) {
+    if (client) {
+        pthread_mutex_destroy(&client->state_mutex);
+        free(client);
     }
 }
 

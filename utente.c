@@ -142,6 +142,10 @@ int main(int argc, char *argv[]) {
     inet_pton(AF_INET, SERVER_IP, &config.server_ip);
 
     struct Client* client = client_create(config);
+    if (!client) {
+        fprintf(stderr, "Error: Could not create client.\n");
+        exit(1);
+    }
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
@@ -181,5 +185,7 @@ int main(int argc, char *argv[]) {
     client_disconnect_from_server(client);
     client_stop_p2p(client);
     
-    free(client);
+    client_destroy(client);
+    
+    exit(0);
 }

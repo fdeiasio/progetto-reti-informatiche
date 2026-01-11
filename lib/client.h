@@ -53,14 +53,18 @@ struct ClientConfig {
 
 extern struct Client* client_create(struct ClientConfig config);
 
+extern void client_destroy(struct Client* client);
+
 extern void client_update_state(struct Client* client, enum ClientState new_state);
 
 extern void client_start_p2p(struct Client* client, void* p2p_server_function(void*));
+
 extern void client_stop_p2p(struct Client* client);
 
 extern void client_connect_to_server(struct Client* client);
 
 extern void client_disconnect_from_server(struct Client* client);
+
 extern int client_listen(struct Client* client);
 
 #endif // CLIENT_H
