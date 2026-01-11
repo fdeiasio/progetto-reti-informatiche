@@ -13,10 +13,26 @@ void signal_handler(int signum) {
     active = 0;
 }
 
-void handle_message(Server* server, int fd, Message msg) {
+int new_client_handler(Server* server, void* args) {
+    int fd = *(int*)args;
+    
+    fprintf(stdout, "New client connected\n");
+
+    return 0;
+}
+
+int handle_message(Server* server, int fd, Message msg) {
     switch (msg.type) {
         case MSG_HELLO:
             fprintf(stdout, "Received HELLO message from client %d\n", msg.message);
+
+            User new_user = {
+                .fd = fd,
+                .port = msg.message,
+            };
+
+            database_add_user(&new_user);
+            database_print_users();
 
             break;
 
@@ -24,52 +40,59 @@ void handle_message(Server* server, int fd, Message msg) {
             fprintf(stderr, "Error: Unknown message type from client %d\n", fd);
             break;
     }
+
+    return 0;
 }
 
-void handle_client(Server* server, void* args) {
+int handle_client(Server* server, void* args) {
     int fd = *(int*) args;
 
     Message msg;
     ssize_t bytes_received = receive_message(fd, &msg);
     if (bytes_received <= 0) {
-        fprintf(stderr, "Client disconnected.\n");
+        int port = database_get_port_from_fd(fd);
 
-        close(fd);
-        server_remove_fd(server, fd);
-        return;
+        if (port != -1) {
+            fprintf(stdout, "Client %d disconnected\n", port);
+            database_remove_user(port);
+        } 
+        else {
+            fprintf(stdout, "Unknown client disconnected\n");
+        }
+        
+        database_print_users();
+        return -1;
     }
 
-    handle_message(server, fd, msg);
+    return handle_message(server, fd, msg);
 }
 
 int main() {
     DatabaseConfig db_config = {
         .max_users = MAX_USERS,
-    };
-    Database* db = database_create(db_config);
-    if (!db) {
+    }; 
+    if (database_init(db_config) < 0) {
         exit(1);
     }
 
     ServerConfig config = {
         .port = SERVER_PORT,
+        .new_client_handler = new_client_handler,
         .client_handler = handle_client,
         .stdin_handler = NULL,
     };
     Server* lavagna = server_create(config);
     if (!lavagna) {
-        database_cleanup(db);
+        database_cleanup();
         exit(1);
     }
-
-    server_bind_database(lavagna, db);
 
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
     if (server_init(lavagna) < 0) {
         server_shutdown(lavagna);
-        database_cleanup(db);
+        database_cleanup();
         exit(1);
     }
 
@@ -77,6 +100,6 @@ int main() {
         ;
 
     server_shutdown(lavagna);
-    database_cleanup(db);
+    database_cleanup();
     exit(0);
 }

@@ -4,8 +4,9 @@
 #include "pch.h"
 
 typedef struct {
-    int id;
-
+    int fd;
+    in_port_t port;
+    
 } User;
 
 typedef struct {
@@ -15,20 +16,27 @@ typedef struct {
 
 typedef struct Database {
     User* users;
-    size_t num_users;
-    size_t max_users;
+    int num_users;
+    int max_users;
 
 } Database;
 
 typedef struct {
-    size_t max_users;
+    int max_users;
 
 } DatabaseConfig;
 
-extern Database* database_create(DatabaseConfig config);
+extern int database_init(DatabaseConfig config);
 
-extern void database_cleanup(Database* db);
+extern void database_cleanup();
 
-extern int database_add_user(Database* db, in_port_t user_id);
+extern int database_add_user(User* user);
 
+extern int database_remove_user(in_port_t user_id);
+
+extern int database_get_user_from_port(in_port_t user_id);
+
+extern int database_get_port_from_fd(int fd);
+
+extern void database_print_users();
 #endif // DATABASE_H

@@ -21,6 +21,7 @@ int server_remove_fd(Server* server, int fd) {
         return -1;
     }
 
+    close(fd);
     FD_CLR(fd, &server->master_set);
 
     if (fd == server->max_fd) {
@@ -30,26 +31,6 @@ int server_remove_fd(Server* server, int fd) {
     }
 
     return 0;
-}
-
-void server_handle_new_client(Server* server, void* args) {
-    (void) args;
-
-    struct sockaddr_in client_addr;
-    socklen_t addr_len = sizeof(client_addr);
-
-    int new_fd = accept(server->socket_fd, (struct sockaddr *)&client_addr, &addr_len);
-    if (new_fd < 0) {
-        fprintf(stderr, "Error: Failed to accept connection.\n");
-        return;
-    }
-
-    if (server_add_fd(server, new_fd) < 0) {
-        close(new_fd);
-        return;
-    }
-    
-    fprintf(stdout, "New client connected\n");
 }
 
 Server* server_create(ServerConfig config) {
@@ -64,14 +45,11 @@ Server* server_create(ServerConfig config) {
     server->addr.sin_port = htons(config.port);
     server->addr.sin_addr.s_addr = INADDR_ANY;
 
-    server->database = NULL;
-
     FD_ZERO(&server->master_set);
     FD_ZERO(&server->read_fds);
     server->max_fd = 0;
 
-    server->new_client_handler = server_handle_new_client;
-
+    server->new_client_handler = config.new_client_handler;
     server->stdin_handler = config.stdin_handler;
     server->client_handler = config.client_handler;
 
@@ -138,14 +116,36 @@ int server_run(Server* server) {
         }
 
         if (fd == server->socket_fd) {
-            server->new_client_handler(server, NULL);
+            struct sockaddr_in client_addr;
+            socklen_t addr_len = sizeof(client_addr);
+
+            int new_fd = accept(server->socket_fd, (struct sockaddr *)&client_addr, &addr_len);
+            if (new_fd < 0) {
+                fprintf(stderr, "Error: Failed to accept connection.\n");
+                continue;
+            }
+
+            if (server_add_fd(server, new_fd) < 0) {
+                close(new_fd);
+                continue;
+            }
+
+            if (server->new_client_handler(server, &new_fd) < 0) {
+                server_remove_fd(server, new_fd);
+                continue;
+            }
         }
         else if (fd == STDIN_FILENO) {
-            server->stdin_handler(server, NULL);
+            if (server->stdin_handler(server, NULL) < 0) {
+                return -1;
+            }
         }
         else {
             int arg = fd;
-            server->client_handler(server, &arg);
+            if (server->client_handler(server, &arg) < 0) {
+                server_remove_fd(server, fd);
+                continue;
+            }
         }
     }
 
@@ -162,8 +162,4 @@ void server_shutdown(Server* server) {
     }
 
     free(server);
-}
-
-void server_bind_database(Server* server, Database* database) {
-    server->database = database;
 }
