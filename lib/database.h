@@ -9,9 +9,15 @@ struct User {
     
 };
 
+enum CardStatus {
+    CARD_STATUS_TODO = 0,
+    CARD_STATUS_DOING = 1,
+    CARD_STATUS_DONE = 2,
+};
+
 struct Card {
     int id;
-    int status;
+    enum CardStatus status;
     char text[256];
     int user;
     uint32_t timestamp;
@@ -24,12 +30,9 @@ struct Lavagna {
 
     int num_cards;
 
-    struct Card *todo_head;
-    struct Card *todo_tail;
-    struct Card *doing_head;
-    struct Card *doing_tail;
-    struct Card *done_head;
-    struct Card *done_tail;
+    struct Card *todo;
+    struct Card *doing;
+    struct Card *done;
 };
 
 struct Database {
@@ -50,7 +53,14 @@ extern int database_init(struct DatabaseConfig config);
 extern void database_cleanup();
 
 extern int database_add_user(struct User* user);
+
 extern int database_remove_user(in_port_t user_id);
+
+extern int database_get_num_users();
+
+extern void database_get_user_list(in_port_t* user_ports, int max_users);
+
+extern int database_get_next_user_port();
 
 extern int database_get_user_from_port(in_port_t user_id);
 
@@ -59,6 +69,16 @@ extern int database_get_port_from_fd(int fd);
 extern void database_print_users();
 
 extern int database_create_card(in_port_t user_id, const char* text);
+
+extern void database_card_doing(int card_id, in_port_t user_id);
+
+extern void database_card_done(int card_id);
+
+extern void database_card_todo(int card_id);
+
+extern int database_get_next_todo_card();
+
+extern void database_card_get_text(int card_id, char* buffer, size_t buffer_size);
 
 extern void database_print_cards();
 #endif // DATABASE_H

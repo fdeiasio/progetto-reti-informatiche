@@ -53,6 +53,15 @@ int handle_stdin_message(struct Client* client, struct Message* msg) {
             fprintf(stdout, "Sent CREATE_CARD message to server\n");
             break;
 
+        case MSG_REQUEST_USER_LIST:
+            if (send_message(client->server_socket, msg) < 0) {
+                fprintf(stderr, "Error: Could not send REQUEST_USER_LIST message to server.\n");
+                return 0;
+            }
+
+            fprintf(stdout, "Sent REQUEST_USER_LIST message to server\n");
+            break;
+
         default:
             fprintf(stderr, "Error: Unknown message type.\n");
             break;
@@ -74,6 +83,44 @@ int handle_stdin(struct Client* client) {
     return handle_stdin_message(client, &msg);
 }
 
+int handle_server_message(struct Client* client, struct Message* msg) {
+    switch (msg->type) {
+        case MSG_SEND_USER_LIST:
+            fprintf(stdout, "Recieved peer list from server:\n");
+
+            int num_users = msg->payload_length / sizeof(in_port_t);
+            in_port_t* user_ports = (in_port_t*)msg->payload;
+
+            for (int i = 0; i < num_users; i++) {
+                fprintf(stdout, "- User on port %d\n", ntohs(user_ports[i]));
+            }
+            break;
+
+        default:
+            fprintf(stderr, "Error: Unknown message type from server.\n");
+            break;
+    }
+    return 0;
+}
+
+int handle_server(struct Client* client) {
+    char buffer[MAX_PAYLOAD_SIZE];
+    memset(buffer, 0, MAX_PAYLOAD_SIZE);
+
+    struct Message msg = {
+        .payload = buffer,
+        .payload_length = MAX_PAYLOAD_SIZE,
+    };
+
+    ssize_t bytes_received = receive_message(client->server_socket, &msg);
+    if (bytes_received <= 0) {
+        fprintf(stdout, "Disconnected from server\n");
+        return -1;
+    }
+
+    return handle_server_message(client, &msg);
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <port>\n", argv[0]);
@@ -89,7 +136,7 @@ int main(int argc, char *argv[]) {
     struct ClientConfig config = {
         .client_port = port,
         .server_port = SERVER_PORT,
-        .server_handler = NULL,
+        .server_handler = handle_server,
         .stdin_handler = handle_stdin,
     };
     inet_pton(AF_INET, SERVER_IP, &config.server_ip);

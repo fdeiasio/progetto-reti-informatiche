@@ -7,6 +7,11 @@ const char *MESSAGE_STRINGS[NUM_MSG_TYPES] = {
     [MSG_SHOW_UTENTI] = "SHOW_UTENTI",
     [MSG_SHOW_LAVAGNA] = "SHOW_LAVAGNA",
     [MSG_CREATE_CARD] = "CREATE_CARD",
+    [MSG_SEND_USER_LIST] = "SEND_USER_LIST",
+    [MSG_REQUEST_USER_LIST] = "REQUEST_USER_LIST",
+    [MSG_HANDLE_CARD] = "HANDLE_CARD",
+    [MSG_ACK_CARD] = "ACK_CARD",
+
 };
 
 ssize_t send_message(int socket, struct Message* msg) {

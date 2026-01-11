@@ -13,6 +13,34 @@ void signal_handler(int signum) {
     active = 0;
 }
 
+void send_user_list(struct Server* server, int fd) {
+    int num_users = database_get_num_users();
+
+    in_port_t* user_ports = (in_port_t*)malloc(num_users * sizeof(in_port_t));
+    if (!user_ports) {
+        fprintf(stderr, "Error: Could not allocate memory for user ports.\n");
+        return;
+    }
+
+    database_get_user_list(user_ports, num_users);
+    for (int i = 0; i < num_users; i++) {
+        user_ports[i] = htons(user_ports[i]);
+    }
+    
+    struct Message msg = {
+        .type = MSG_SEND_USER_LIST,
+        .payload_length = database_get_num_users() * sizeof(in_port_t),
+        .payload = user_ports,
+    };
+
+    send_message(fd, &msg);
+    free(user_ports);
+
+    fprintf(stdout, "Sent user list to client\n");
+}
+
+
+
 int handle_new_client(struct Server* server, void* args) {
     int fd = *(int*)args;
     
@@ -36,6 +64,7 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
 
             database_add_user(&new_user);
             database_print_users();
+
             break;
 
         case MSG_CREATE_CARD:
@@ -47,7 +76,17 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
             char* card_text = (char*) msg->payload;
             database_create_card(user_id, card_text);
             database_print_cards();
+
             break;
+
+        case MSG_REQUEST_USER_LIST:
+            fprintf(stdout, "Received REQUEST_USER_LIST message from user on port %d\n", 
+                database_get_port_from_fd(fd)
+            );
+
+            send_user_list(server, fd);
+            break;
+
         default:
             fprintf(stderr, "Error: Unknown message type from user %d\n", fd);
             break;
