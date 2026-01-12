@@ -15,7 +15,6 @@ void signal_handler(int signum) {
 }
 
 int handle_new_client(struct Server* server, void* args) {
-    int fd = *(int*)args;
     
     fprintf(stdout, "New client connected\n");
 

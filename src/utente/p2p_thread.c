@@ -9,7 +9,6 @@
 static int remaining_acks = 0;
 
 int handle_new_peer(struct Server* server, void* args) {
-    int fd = *(int*)args;
 
     return 0;
 }
@@ -62,6 +61,7 @@ int handle_peer_message(struct Server* server, int fd, struct Message* msg) {
 int handle_peer(struct Server* server, void* args) {
     int fd = *(int*) args;
 
+    // Per i peer non sono definiti messaggi con payload più grandi di 4 byte
     uint32_t payload;
 
     struct Message msg = {

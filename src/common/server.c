@@ -46,7 +46,6 @@ struct Server* server_create(struct ServerConfig config) {
     server->addr.sin_addr.s_addr = INADDR_ANY;
 
     FD_ZERO(&server->master_set);
-    FD_ZERO(&server->read_fds);
     server->max_fd = 0;
 
     server->new_client_handler = config.new_client_handler;

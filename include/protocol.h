@@ -52,8 +52,6 @@ struct Message {
     void* payload;
 };
 
-/* ==== Funzioni per inviare e ricevere messaggi ==== */
-
 /* *
  * Invia il messaggio msg atraverso il socket socket.
  * Ritorna il numero di byte inviati, o -1 in caso di errore.

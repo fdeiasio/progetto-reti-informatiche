@@ -2,12 +2,21 @@
 #define CLIENT_H
 
 #include "common.h"
-/**
- * Questo header definisce la struttura e le funzioni di un client TCP.
- * Include anche la parte P2P del client.
- */
+
+/* ================================================================================ *
+ * Questo header definisce la struttura e le funzioni di un client TCP.             *
+ * Viene usato per implementare il client dell'applicazione utente.                 * 
+ * ================================================================================ */
+
+ 
+// Forward declaration per la callback
 struct Client;
 
+/**
+ * Definizione del tipo delle callback usate dal client.
+ * Queste funzioni vengono chiamate in automatico dal client 
+ * quando si verificano certi eventi. 
+ */
 typedef int (*ClientCallback)(struct Client*);
 
 /**
@@ -17,7 +26,6 @@ typedef int (*ClientCallback)(struct Client*);
  * server_addr: Indirizzo del server
  * 
  * master_set: Set di file descriptor monitorati dal client
- * read_fds: Set di file descriptor pronti per la lettura
  * max_fd: Massimo file descriptor attualmente monitorato
  * 
  * server_handler: Callback chiamata quando il server invia un messaggio
@@ -51,7 +59,7 @@ struct ClientConfig {
 };
 
 /**
- * Funzioni per creare, connettere e distruggere un client.
+ * Funzioni per creare, connettere, far girare e distruggere un client.
  */
 extern struct Client* client_create(struct ClientConfig config);
 

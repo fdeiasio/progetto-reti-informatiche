@@ -5,6 +5,8 @@
 #include "include/utente_state.h"
 #include "include/utente_utils.h"
 
+#define MIN_PORT 5679
+
 static volatile sig_atomic_t running = 1;
 
 void signal_handler(int signum) {
@@ -230,6 +232,9 @@ int main(int argc, char *argv[]) {
                 break;
             case STATE_DISCONNECTING:
                 // Wait for shutdown signal from p2p thread
+                break;
+
+            default:
                 break;
         }
     }
