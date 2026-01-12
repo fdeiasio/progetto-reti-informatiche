@@ -35,7 +35,7 @@ struct Utente {
     pthread_t worker_thread;
 };
 
-extern int utente_init(in_port_t port);
+extern void utente_init(in_port_t port);
 
 extern enum UtenteState utente_get_state();
 

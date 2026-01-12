@@ -69,6 +69,13 @@ int server_init(struct Server* server) {
         return -1;
     }
 
+    if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        fprintf(stderr, "Error: Could not set socket options.\n");
+        close(server->socket_fd);
+        server->socket_fd = -1;
+        return -1;
+    }
+
     if (listen(server->socket_fd, 10) < 0) {
         fprintf(stderr, "Error: Could not listen on socket.\n");
         close(server->socket_fd);

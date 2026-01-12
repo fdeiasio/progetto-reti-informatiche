@@ -4,8 +4,6 @@
 #include "include/database.h"
 #include "include/lavagna_utils.h"
 
-#define MAX_USERS 100
-
 static volatile sig_atomic_t active = 1;
 
 void signal_handler(int signum) {
@@ -27,12 +25,7 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
             in_port_t user_port = ntohs(*(in_port_t*) msg->payload);
             fprintf(stdout, "Received HELLO message from user on port %d\n", user_port);
 
-            struct User new_user = {
-                .fd = fd,
-                .port = user_port,
-            };
-
-            database_add_user(&new_user);
+            database_add_user(fd, user_port);
             database_print_users();
 
             assign_card();
@@ -168,12 +161,7 @@ int handle_stdin(struct Server* server, void* args) {
 }
 
 int main() {
-    struct DatabaseConfig db_config = {
-        .max_users = MAX_USERS,
-    }; 
-    if (database_init(db_config) < 0) {
-        exit(1);
-    }
+    database_init();
 
     struct ServerConfig config = {
         .port = SERVER_PORT,

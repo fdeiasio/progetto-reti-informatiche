@@ -3,7 +3,7 @@
 
 struct Utente utente;
 
-int utente_init(in_port_t port) {
+void utente_init(in_port_t port) {
     utente.port = port;
     utente.state = STATE_STARTING_P2P;
     pthread_mutex_init(&utente.state_mutex, NULL);
@@ -11,8 +11,6 @@ int utente_init(in_port_t port) {
     utente.card_id = -1;
     utente.user_list = NULL;
     utente.num_users = 0;
-
-    return 0;
 }
 
 enum UtenteState utente_get_state() {

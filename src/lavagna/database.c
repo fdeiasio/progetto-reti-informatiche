@@ -13,6 +13,14 @@ static void free_card_list(struct Card* head) {
     }
 }
 
+static void free_user_list(struct User* head) {
+    while (head) {
+        struct User* next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
 static void append_card(struct Card** head, struct Card* card) {
     card->next = NULL;
     if (*head == NULL) {
@@ -23,6 +31,20 @@ static void append_card(struct Card** head, struct Card* card) {
             current = current->next;
         }
         current->next = card;
+    }
+}
+
+static void insert_user(struct User** head, struct User* user) {
+    if (*head == NULL || (*head)->port > user->port) {
+        user->next = *head;
+        *head = user;
+    } else {
+        struct User* current = *head;
+        while (current->next != NULL && current->next->port < user->port) {
+            current = current->next;
+        }
+        user->next = current->next;
+        current->next = user;
     }
 }
 
@@ -38,9 +60,30 @@ static struct Card* remove_card_from_list(struct Card** head, int card_id) {
     return NULL;
 }
 
+static struct User* remove_user_from_list(struct User** head, in_port_t user_id) {
+    for (struct User** curr = head; *curr != NULL; curr = &(*curr)->next) {
+        if ((*curr)->port == user_id) {
+            struct User* user = *curr;
+            *curr = user->next;
+            user->next = NULL;
+            return user;
+        }
+    }
+    return NULL;
+}
+
 static struct Card* find_card_in_list(struct Card* head, int card_id) {
     for (struct Card* curr = head; curr != NULL; curr = curr->next) {
         if (curr->id == card_id) {
+            return curr;
+        }
+    }
+    return NULL;
+}
+
+static struct User* find_user_in_list(struct User* head, in_port_t user_id) {
+    for (struct User* curr = head; curr != NULL; curr = curr->next) {
+        if (curr->port == user_id) {
             return curr;
         }
     }
@@ -61,31 +104,14 @@ static struct Card* database_find_card(int card_id) {
     return card;
 }
 
-static int database_get_user_from_port(in_port_t user_id) {
-    struct Database* db = &database;
-
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].port == user_id) {
-            return i;
-        }
-    }
-
-    return -1; 
-}
-
 
 /* ==================== Database Initialization ==================== */
 
-int database_init(struct DatabaseConfig config) {
+void database_init() {
     struct Database* db = &database;
 
-    db->users = (struct User*)malloc(sizeof(struct User) * config.max_users);
-    if (!db->users) {
-        fprintf(stderr, "Error: Could not allocate memory for users.\n");
-        return -1;
-    }
+    db->users = NULL;
     db->num_users = 0;
-    db->max_users = config.max_users;
 
     db->lavagna = (struct Lavagna) {
         .id = 1,
@@ -94,8 +120,6 @@ int database_init(struct DatabaseConfig config) {
         .doing = NULL,
         .done = NULL,
     };
-
-    return 0;
 }
 
 void database_cleanup() {
@@ -110,19 +134,19 @@ void database_cleanup() {
     db->lavagna.done = NULL;
     db->lavagna.num_cards = 0;
 
-    free(db->users);
+    free_user_list(db->users);
+
     db->users = NULL;
     db->num_users = 0;
-    db->max_users = 0;
 }
 
 
 int database_get_port_from_fd(int fd) {
     struct Database* db = &database;
 
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].fd == fd) {
-            return db->users[i].port;
+    for (struct User* curr = db->users; curr != NULL; curr = curr->next) {
+        if (curr->fd == fd) {
+            return curr->port;
         }
     }
 
@@ -132,38 +156,35 @@ int database_get_port_from_fd(int fd) {
 int database_get_fd_from_port(in_port_t port) {
     struct Database* db = &database;
 
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].port == port) {
-            return db->users[i].fd;
-        }
+    struct User* user = find_user_in_list(db->users, port);
+    if (!user) {
+        return -1;
     }
 
-    return -1; 
+    return user->fd;
 }
 
-int database_add_user(struct User* user) {
+int database_add_user(int fd, in_port_t port) {
     struct Database* db = &database;
 
-    if (!user) {
-        fprintf(stderr, "Error: User pointer is NULL.\n");
+    if (find_user_in_list(db->users, port) != NULL) {
+        fprintf(stderr, "Error: User with ID %d already exists.\n", port);
         return -1;
     }
 
-    if (db->num_users >= db->max_users) {
-        fprintf(stderr, "Error: Database is full. Cannot add more users.\n");
+    struct User* new_user = (struct User*)malloc(sizeof(struct User));
+    if (!new_user) {
+        fprintf(stderr, "Error: Could not allocate memory for new user.\n");
         return -1;
     }
 
-    if (database_get_user_from_port(user->port) != -1) {
-        fprintf(stderr, "Error: User with ID %d already exists.\n", user->port);
-        return -1;
-    }
+    new_user->fd = fd;
+    new_user->port = port;
+    new_user->status = USER_STATE_IDLE;
+    new_user->card_id = -1;
+    new_user->next = NULL;
 
-    db->users[db->num_users].fd = user->fd;
-    db->users[db->num_users].port = user->port;
-    db->users[db->num_users].status = USER_STATE_IDLE;
-    db->users[db->num_users].card_id = -1;
-
+    insert_user(&db->users, new_user);
     db->num_users++;
 
     return 0;
@@ -172,14 +193,12 @@ int database_add_user(struct User* user) {
 int database_remove_user(in_port_t user_id) {
     struct Database* db = &database;
 
-    int index = database_get_user_from_port(user_id);
-    if (index == -1) {
+    struct User* removed_user = remove_user_from_list(&db->users, user_id);
+    if (!removed_user) {
         return -1;
     }
 
-    for (int i = index; i < db->num_users - 1; i++) {
-        db->users[i] = db->users[i + 1];
-    }
+    free(removed_user);
     db->num_users--;
 
     return 0;
@@ -187,28 +206,34 @@ int database_remove_user(in_port_t user_id) {
 
 int database_get_num_users() {
     const struct Database* db = &database;
+
     return db->num_users;
 }
 
-int database_get_user_list(in_port_t* user_ports, int max_users) {
+int database_get_user_list(in_port_t** user_ports) {
     const struct Database* db = &database;
 
-    if (!user_ports || max_users <= 0) {
+    int count = db->num_users;
+    if (count == 0) {
+        *user_ports = NULL;
         return 0;
     }
 
-    int count = (db->num_users < max_users) ? db->num_users : max_users;
-    for (int i = 0; i < count; i++) {
-        user_ports[i] = db->users[i].port;
+    *user_ports = (in_port_t*)malloc(count * sizeof(in_port_t));
+    if (!*user_ports) {
+        fprintf(stderr, "Error: Could not allocate memory for user ports.\n");
+        return 0;
     }
+    struct User* current = db->users;
+    for (int i = 0; i < count; i++) {
+        (*user_ports)[i] = current->port;
+        current = current->next;
+    }
+
     return count;
 }
 
-static in_port_t last_chosen_port = 0;
-
-void database_reset_user_iterator() {
-    last_chosen_port = 0;
-}
+static struct User* last_chosen_user = NULL;
 
 int database_get_next_user_port() {
     struct Database* db = &database;
@@ -217,68 +242,41 @@ int database_get_next_user_port() {
         return -1;
     }
 
-    // Find the minimum port among idle users
-    int min_port_index = -1;
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].status == USER_STATE_IDLE) {
-            if (min_port_index == -1 || db->users[i].port < db->users[min_port_index].port) {
-                min_port_index = i;
-            }
+    struct User* start = last_chosen_user ? last_chosen_user->next : db->users;
+    if (start == NULL) {
+        start = db->users;
+    }
+    
+    for (struct User* curr = start; curr != NULL; curr = curr->next) {
+        if (curr->status == USER_STATE_IDLE) {
+            last_chosen_user = curr;
+            return curr->port;
         }
     }
 
-    // No idle users found
-    if (min_port_index == -1) {
-        return -1;
-    }
-
-    if (last_chosen_port == 0) {
-        last_chosen_port = db->users[min_port_index].port;
-        return last_chosen_port;
-    }
-
-    in_port_t next_port = 0;
-    int found = 0;
-    for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].status == USER_STATE_IDLE && db->users[i].port > last_chosen_port) {
-            if (!found || db->users[i].port < next_port) {
-                next_port = db->users[i].port;
-                found = 1;
-            }
+    for (struct User* curr = db->users; curr != start; curr = curr->next) {
+        if (curr->status == USER_STATE_IDLE) {
+            last_chosen_user = curr;
+            return curr->port;
         }
     }
 
-    if (!found) {
-        next_port = db->users[min_port_index].port;
-    }
-
-    last_chosen_port = next_port;
-
-    return last_chosen_port;
+    return -1;
 }
-
 void database_user_set_status(in_port_t user_id, enum UserStatus status) {
     struct Database* db = &database;
 
-    int index = database_get_user_from_port(user_id);
-    if (index == -1) {
-        fprintf(stderr, "Error: User with ID %d not found.\n", user_id);
-        return;
-    }
+    struct User* user = find_user_in_list(db->users, user_id);
 
-    db->users[index].status = status;
+    user->status = status;
 }
 
 void database_user_assign_card(in_port_t user_id, int card_id) {
     struct Database* db = &database;
 
-    int index = database_get_user_from_port(user_id);
-    if (index == -1) {
-        fprintf(stderr, "Error: User with ID %d not found.\n", user_id);
-        return;
-    }
+    struct User* user = find_user_in_list(db->users, user_id);
 
-    db->users[index].card_id = card_id;
+    user->card_id = card_id;
 }
 
 void database_print_users() {
@@ -286,10 +284,12 @@ void database_print_users() {
 
     fprintf(stdout, "==== Current Users in Database ====\n");
     if (db->num_users == 0) {
-        fprintf(stdout, "> (no users)\n");
+        fprintf(stdout, "(no users)\n");
     } else {
-        for (int i = 0; i < db->num_users; i++) {
-            fprintf(stdout, "> User %d: Port=%d\n", i + 1, db->users[i].port);
+        for (struct User* curr = db->users; curr != NULL; curr = curr->next) {
+            fprintf(stdout, "User Port: %d\t FD: %d\t Status: %d\t Card ID: %d\n", 
+                curr->port, curr->fd, curr->status, curr->card_id
+            );
         }
     }
     fprintf(stdout, "===================================\n");
@@ -325,9 +325,13 @@ int database_create_card(const char* text) {
 int database_card_doing(in_port_t user_id) {
     struct Database* db = &database;
 
-    int card_id = db->users[database_get_user_from_port(user_id)].card_id;
+    struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
+        return -1;
+    }
+
+    int card_id = user->card_id;
     if (card_id == -1) {
-        fprintf(stderr, "Error: User %d has no assigned card.\n", user_id);
         return -1;
     }
 
@@ -343,19 +347,24 @@ int database_card_doing(in_port_t user_id) {
 int database_card_done(in_port_t user_id) {
     struct Database* db = &database;
 
-    struct User* user = &db->users[database_get_user_from_port(user_id)];
-
-    int card_id = user->card_id;
-
-    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
-    if (!card) {
-        fprintf(stderr, "Error: Card %d not found in DOING list.\n", card_id);
+    struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
         return -1;
     }
 
-    database_user_set_status(user_id, USER_STATE_IDLE);
+    int card_id = user->card_id;
+    if (card_id == -1) {
+        return -1;
+    }
+
+    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
+    if (!card) {
+        return -1;
+    }
+
+    user->status = USER_STATE_IDLE;
     user->card_id = -1;
-    
+
     card->status = CARD_STATUS_DONE;
     append_card(&db->lavagna.done, card);
 
@@ -365,11 +374,16 @@ int database_card_done(in_port_t user_id) {
 int database_card_todo(in_port_t user_id) {
     struct Database* db = &database;
 
-    struct User* user = &db->users[database_get_user_from_port(user_id)];
+   struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
+        return -1;
+    }
+
     int card_id = user->card_id;
     if (card_id == -1) {
         return -1;
     }
+
     user->card_id = -1;
     user->status = USER_STATE_IDLE;
 

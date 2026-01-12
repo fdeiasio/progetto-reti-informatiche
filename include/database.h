@@ -15,6 +15,8 @@ struct User {
     
     enum UserStatus status;
     int card_id;
+
+    struct User* next;
 };
 
 enum CardStatus {
@@ -46,29 +48,23 @@ struct Lavagna {
 struct Database {
     struct User* users;
     int num_users;
-    int max_users;
 
     struct Lavagna lavagna;
 };
 
-struct DatabaseConfig {
-    int max_users;
-
-};
-
 /* ===== Database Functions ===== */
-extern int database_init(struct DatabaseConfig config);
+extern void database_init();
 
 extern void database_cleanup();
 
 /*===== Database Users Functions =====*/
-extern int database_add_user(struct User* user);
+extern int database_add_user(int fd, in_port_t port);
 
 extern int database_remove_user(in_port_t user_id);
 
 extern int database_get_num_users();
 
-extern int database_get_user_list(in_port_t* user_ports, int max_users);
+extern int database_get_user_list(in_port_t** user_ports);
 
 extern int database_get_next_user_port();
 

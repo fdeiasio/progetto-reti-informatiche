@@ -5,15 +5,9 @@
 #include "../../include/server.h"
 
 void send_user_list(int fd) {
-    int num_users = database_get_num_users();
+    in_port_t* user_ports;
 
-    in_port_t* user_ports = (in_port_t*)malloc(num_users * sizeof(in_port_t));
-    if (!user_ports) {
-        fprintf(stderr, "Error: Could not allocate memory for user ports.\n");
-        return;
-    }
-
-    int count = database_get_user_list(user_ports, num_users);
+    int count = database_get_user_list(&user_ports);
     for (int i = 0; i < count; i++) {
         user_ports[i] = htons(user_ports[i]);
     }
