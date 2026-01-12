@@ -129,6 +129,18 @@ int database_get_port_from_fd(int fd) {
     return -1; 
 }
 
+int database_get_fd_from_port(in_port_t port) {
+    struct Database* db = &database;
+
+    for (int i = 0; i < db->num_users; i++) {
+        if (db->users[i].port == port) {
+            return db->users[i].fd;
+        }
+    }
+
+    return -1; 
+}
+
 int database_add_user(struct User* user) {
     struct Database* db = &database;
 
@@ -149,6 +161,9 @@ int database_add_user(struct User* user) {
 
     db->users[db->num_users].fd = user->fd;
     db->users[db->num_users].port = user->port;
+    db->users[db->num_users].status = USER_STATE_IDLE;
+    db->users[db->num_users].card_id = -1;
+
     db->num_users++;
 
     return 0;
@@ -202,11 +217,19 @@ int database_get_next_user_port() {
         return -1;
     }
 
-    int min_port_index = 0;
-    for (int i = 1; i < db->num_users; i++) {
-        if (db->users[i].port < db->users[min_port_index].port) {
-            min_port_index = i;
+    // Find the minimum port among idle users
+    int min_port_index = -1;
+    for (int i = 0; i < db->num_users; i++) {
+        if (db->users[i].status == USER_STATE_IDLE) {
+            if (min_port_index == -1 || db->users[i].port < db->users[min_port_index].port) {
+                min_port_index = i;
+            }
         }
+    }
+
+    // No idle users found
+    if (min_port_index == -1) {
+        return -1;
     }
 
     if (last_chosen_port == 0) {
@@ -217,7 +240,7 @@ int database_get_next_user_port() {
     in_port_t next_port = 0;
     int found = 0;
     for (int i = 0; i < db->num_users; i++) {
-        if (db->users[i].port > last_chosen_port) {
+        if (db->users[i].status == USER_STATE_IDLE && db->users[i].port > last_chosen_port) {
             if (!found || db->users[i].port < next_port) {
                 next_port = db->users[i].port;
                 found = 1;
@@ -232,6 +255,30 @@ int database_get_next_user_port() {
     last_chosen_port = next_port;
 
     return last_chosen_port;
+}
+
+void database_user_set_status(in_port_t user_id, enum UserStatus status) {
+    struct Database* db = &database;
+
+    int index = database_get_user_from_port(user_id);
+    if (index == -1) {
+        fprintf(stderr, "Error: User with ID %d not found.\n", user_id);
+        return;
+    }
+
+    db->users[index].status = status;
+}
+
+void database_user_assign_card(in_port_t user_id, int card_id) {
+    struct Database* db = &database;
+
+    int index = database_get_user_from_port(user_id);
+    if (index == -1) {
+        fprintf(stderr, "Error: User with ID %d not found.\n", user_id);
+        return;
+    }
+
+    db->users[index].card_id = card_id;
 }
 
 void database_print_users() {
@@ -275,14 +322,16 @@ int database_create_card(const char* text) {
     return new_card->id;
 }
 
-int database_card_doing(int card_id, in_port_t user_id) {
+int database_card_doing(in_port_t user_id) {
     struct Database* db = &database;
 
-    struct Card* card = remove_card_from_list(&db->lavagna.todo, card_id);
-    if (!card) {
-        fprintf(stderr, "Error: Card %d not found in TODO list.\n", card_id);
+    int card_id = db->users[database_get_user_from_port(user_id)].card_id;
+    if (card_id == -1) {
+        fprintf(stderr, "Error: User %d has no assigned card.\n", user_id);
         return -1;
     }
+
+    struct Card* card = remove_card_from_list(&db->lavagna.todo, card_id);
 
     card->status = CARD_STATUS_DOING;
     card->user = user_id;
@@ -306,14 +355,18 @@ int database_card_done(int card_id) {
     return 0;
 }
 
-int database_card_todo(int card_id) {
+int database_card_todo(in_port_t user_id) {
     struct Database* db = &database;
 
-    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
-    if (!card) {
-        fprintf(stderr, "Error: Card %d not found in DOING list.\n", card_id);
+    struct User* user = &db->users[database_get_user_from_port(user_id)];
+    int card_id = user->card_id;
+    if (card_id == -1) {
         return -1;
     }
+    user->card_id = -1;
+    user->status = USER_STATE_IDLE;
+
+    struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
 
     card->status = CARD_STATUS_TODO;
     card->user = 0;
@@ -345,6 +398,8 @@ int database_card_get_text(int card_id, char* buffer, size_t buffer_size) {
 
     strncpy(buffer, card->text, buffer_size - 1);
     buffer[buffer_size - 1] = '\0';
+
+    fprintf(stdout, "database_card_get_text: card_id=%d, text=%s\n", card_id, buffer);
     return 0;
 }
 

@@ -11,10 +11,13 @@ enum ClientState{
     STATE_STARTING_P2P,
     STATE_CONNECTING,
     STATE_IDLE,
+
     STATE_WORKING,
-    STATE_WAITING_RUL,
-    STATE_SENDING_RUL,
+
+    STATE_REQUESTING_UL,
+    STATE_WAITING_UL,
     STATE_WAITING_ACK,
+
     STATE_DISCONNECTING,
     STATE_SHUTTING_DOWN,
 
@@ -33,6 +36,10 @@ struct Client {
     fd_set master_set;
     fd_set read_fds;
     int max_fd;
+
+    int card_id;
+    in_port_t* user_list;
+    int num_users;
 
     ClientCallback server_handler;
     ClientCallback stdin_handler;
@@ -60,6 +67,8 @@ extern void client_update_state(struct Client* client, enum ClientState new_stat
 extern void client_start_p2p(struct Client* client, void* p2p_server_function(void*));
 
 extern void client_stop_p2p(struct Client* client);
+
+extern void client_start_worker(struct Client* client, void* worker_thread_function(void*));
 
 extern void client_connect_to_server(struct Client* client);
 

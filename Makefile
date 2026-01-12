@@ -4,11 +4,11 @@ CFLAGS  := -Wall -Wextra -pedantic -std=c11
 LDFLAGS :=
 
 # Source files
-COMMON_SRC := lib/server.c lib/p2p_thread.c lib/protocol.c lib/client.c lib/database.c
+COMMON_SRC := lib/server.c lib/p2p_thread.c lib/protocol.c lib/client.c lib/database.c lib/worker_thread.c
 COMMON_OBJ := $(COMMON_SRC:.c=.o)
 
 # Headers (for dependency tracking)
-HEADERS := lib/server.h lib/p2p_thread.h lib/protocol.h lib/client.h lib/database.h lib/pch.h
+HEADERS := lib/server.h lib/p2p_thread.h lib/protocol.h lib/client.h lib/database.h lib/worker_thread.h lib/pch.h
 # Executables
 TARGETS := utente lavagna
 

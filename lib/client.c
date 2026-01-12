@@ -23,6 +23,10 @@ struct Client* client_create(struct ClientConfig config) {
     FD_SET(STDIN_FILENO, &client->master_set);
     client->max_fd = STDIN_FILENO;
 
+    client->card_id = -1;
+    client->user_list = NULL;
+    client->num_users = 0;
+
     client->server_handler = config.server_handler;
     client->stdin_handler = config.stdin_handler;
 
@@ -45,6 +49,13 @@ void client_start_p2p(struct Client* client, void* p2p_server_function(void*)) {
 void client_stop_p2p(struct Client* client) {
     client_update_state(client, STATE_DISCONNECTING);
     pthread_join(client->p2p_server_thread, NULL);
+}
+
+void client_start_worker(struct Client* client, void* worker_thread_function(void*)) {
+    if (pthread_create(&client->worker_thread, NULL, worker_thread_function, client) != 0) {
+        fprintf(stderr, "Error: Could not create worker thread.\n");
+        exit(1);
+    }
 }
 
 void client_connect_to_server(struct Client* client) {
@@ -79,6 +90,7 @@ void client_disconnect_from_server(struct Client* client) {
 void client_destroy(struct Client* client) {
     if (client) {
         pthread_mutex_destroy(&client->state_mutex);
+        free(client->user_list);
         free(client);
     }
 }

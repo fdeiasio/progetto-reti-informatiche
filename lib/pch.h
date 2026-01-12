@@ -15,5 +15,6 @@
 #include <pthread.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 #endif //PCH_H

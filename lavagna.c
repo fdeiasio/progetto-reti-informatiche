@@ -14,8 +14,8 @@ void signal_handler(int signum) {
     active = 0;
 }
 
-void send_user_list(struct Server* server, int fd) {
-    (void)server;
+void send_user_list(int fd) {
+
     int num_users = database_get_num_users();
 
     in_port_t* user_ports = (in_port_t*)malloc(num_users * sizeof(in_port_t));
@@ -41,6 +41,44 @@ void send_user_list(struct Server* server, int fd) {
     fprintf(stdout, "Sent user list to client\n");
 }
 
+int assign_card() {
+    int next_card_id = database_get_next_todo_card();
+    int next_user_port = database_get_next_user_port();
+
+    if (next_card_id == -1 || next_user_port == -1) {
+        return -1;
+    }
+
+    fprintf(stdout, "Assigning card %d to user on port %d\n", next_card_id, next_user_port);
+
+    char buffer[MAX_PAYLOAD_SIZE];
+    int32_t id_network = htonl(next_card_id);
+
+    memcpy(buffer, &id_network, sizeof(id_network));
+    char* text_ptr = buffer + sizeof(id_network);
+
+    if (database_card_get_text(next_card_id, text_ptr, MAX_PAYLOAD_SIZE - sizeof(id_network)) < 0) {
+        fprintf(stderr, "Error: Could not get card text.\n");
+        return -1;
+    }
+
+    struct Message msg = {
+        .type = MSG_HANDLE_CARD,
+        .payload_length = sizeof(id_network) + strlen(text_ptr) + 1,
+        .payload = buffer,
+    };
+
+    if (send_message(database_get_fd_from_port(next_user_port), &msg) < 0) {
+        fprintf(stderr, "Error: Could not send HANDLE_CARD message to user on port %d.\n", next_user_port);
+        return -1;
+    }
+
+    database_user_set_status(next_user_port, USER_STATE_WAITING_ACK);
+    database_user_assign_card(next_user_port, next_card_id);
+
+    return 0;
+}
+
 int handle_new_client(struct Server* server, void* args) {
     int fd = *(int*)args;
     
@@ -64,6 +102,8 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
                 fprintf(stderr, "Error: Could not add user to database.\n");
             }
             database_print_users();
+
+            assign_card();
             break;
         }
 
@@ -76,6 +116,8 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
                 fprintf(stderr, "Error: Could not create card.\n");
             }
             database_print_cards();
+
+            assign_card();
             break;
         }
 
@@ -84,9 +126,31 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
                 database_get_port_from_fd(fd)
             );
 
-            send_user_list(server, fd);
+            send_user_list(fd);
             break;
 
+        case MSG_ACK_CARD: {
+            int user_port = database_get_port_from_fd(fd);
+            fprintf(stdout, "Received ACK_CARD message from user on port %d\n", user_port);
+            database_user_set_status(user_port, USER_STATE_WORKING);
+
+            database_card_doing(user_port);
+            database_print_cards();
+        }   
+            break;
+
+        case MSG_QUIT: {
+            int user_port = database_get_port_from_fd(fd);
+            fprintf(stdout, "Received QUIT message from user on port %d\n", user_port);
+
+            database_card_todo(user_port);
+            database_remove_user(user_port);
+            database_print_users();
+            database_print_cards();
+
+            assign_card();
+            break;
+        }
         default:
             fprintf(stderr, "Error: Unknown message type from user %d\n", fd);
             break;
@@ -113,6 +177,8 @@ int handle_client(struct Server* server, void* args) {
         if (port != -1) {
             fprintf(stdout, "Client %d disconnected\n", port);
             database_remove_user(port);
+            database_card_todo(port);
+            assign_card();
         } 
         else {
             fprintf(stdout, "Unknown client disconnected\n");
