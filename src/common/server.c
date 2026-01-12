@@ -92,14 +92,14 @@ int server_init(struct Server* server) {
 }
 
 int server_run(struct Server* server) {
-    server->read_fds = server->master_set;
+    fd_set read_fds = server->master_set;
 
     struct timeval timeout = { 
         .tv_sec = 0, 
         .tv_usec = 100000 
     };
 
-    int activity = select(server->max_fd + 1, &server->read_fds, NULL, NULL, &timeout);
+    int activity = select(server->max_fd + 1, &read_fds, NULL, NULL, &timeout);
     if (activity < 0) {
         if (errno == EINTR) {
             return -1; 
@@ -115,7 +115,7 @@ int server_run(struct Server* server) {
     }
 
     for (int fd = 0; fd <= server->max_fd; fd++) {
-        if (!FD_ISSET(fd, &server->read_fds)) {
+        if (!FD_ISSET(fd, &read_fds)) {
             continue;
         }
 

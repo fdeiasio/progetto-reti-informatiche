@@ -28,7 +28,6 @@ struct Client {
     struct sockaddr_in server_addr;
 
     fd_set master_set;
-    fd_set read_fds;
     int max_fd;
 
     ClientCallback server_handler;

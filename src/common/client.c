@@ -13,7 +13,6 @@ struct Client* client_create(struct ClientConfig config) {
     client->server_addr.sin_addr.s_addr = config.server_ip;
 
     FD_ZERO(&client->master_set);
-    FD_ZERO(&client->read_fds);
 
     FD_SET(STDIN_FILENO, &client->master_set);
     client->max_fd = STDIN_FILENO;
@@ -61,14 +60,14 @@ void client_destroy(struct Client* client) {
 }
 
 int client_listen(struct Client* client) {
-    client->read_fds = client->master_set;
+    fd_set read_fds = client->master_set;
 
     struct timeval timeout = {
         .tv_sec = 0,
         .tv_usec = 100000,
     };
 
-    int activity = select(client->max_fd + 1, &client->read_fds, NULL, NULL, &timeout);
+    int activity = select(client->max_fd + 1, &read_fds, NULL, NULL, &timeout);
     if (activity < 0) {
         if (errno == EINTR) {
             return -1;
@@ -78,13 +77,13 @@ int client_listen(struct Client* client) {
         return -1;
     }
 
-    if (FD_ISSET(STDIN_FILENO, &client->read_fds)) {
+    if (FD_ISSET(STDIN_FILENO, &read_fds)) {
         if (client->stdin_handler && client->stdin_handler(client) < 0) {
             return -1;
         }
     }
 
-    if (FD_ISSET(client->server_socket, &client->read_fds)) {
+    if (FD_ISSET(client->server_socket, &read_fds)) {
         if (client->server_handler && client->server_handler(client) < 0) {
             return -1;
         }
