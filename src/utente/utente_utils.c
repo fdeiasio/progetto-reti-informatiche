@@ -35,7 +35,7 @@ void send_server_card_ack(struct Client* client) {
     fprintf(stdout, "Sent ACK_CARD message to server\n");
 }
 
-void send_p2p_user_list(struct Client* client) {
+void send_p2p_user_list() {
     int p2p_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (p2p_socket < 0) {
         fprintf(stderr, "Error: Could not create P2P socket.\n");

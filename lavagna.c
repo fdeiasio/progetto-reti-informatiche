@@ -72,6 +72,18 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
         }   
             break;
 
+        case MSG_CARD_DONE: {
+            int user_port = database_get_port_from_fd(fd);
+            fprintf(stdout, "Received CARD_DONE message from user on port %d\n", user_port);
+
+            database_card_done(user_port);
+            database_user_set_status(user_port, USER_STATE_IDLE);
+
+            assign_card();
+            database_print_cards();
+            break;
+        }
+
         case MSG_QUIT: {
             int user_port = database_get_port_from_fd(fd);
             fprintf(stdout, "Received QUIT message from user on port %d\n", user_port);

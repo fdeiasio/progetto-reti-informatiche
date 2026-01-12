@@ -340,8 +340,12 @@ int database_card_doing(in_port_t user_id) {
     return 0;
 }
 
-int database_card_done(int card_id) {
+int database_card_done(in_port_t user_id) {
     struct Database* db = &database;
+
+    struct User* user = &db->users[database_get_user_from_port(user_id)];
+
+    int card_id = user->card_id;
 
     struct Card* card = remove_card_from_list(&db->lavagna.doing, card_id);
     if (!card) {
@@ -349,6 +353,9 @@ int database_card_done(int card_id) {
         return -1;
     }
 
+    database_user_set_status(user_id, USER_STATE_IDLE);
+    user->card_id = -1;
+    
     card->status = CARD_STATUS_DONE;
     append_card(&db->lavagna.done, card);
 

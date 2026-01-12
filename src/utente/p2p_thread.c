@@ -1,15 +1,15 @@
 #include "../../include/common.h"
 #include "../../include/server.h"
 #include "../../include/protocol.h"
-#include "../../include/thread.h"
 #include "../../include/utente_state.h"
+#include "../../include/p2p_utils.h"
 
 #define LOCALHOST "127.0.0.1"
 
+static int remaining_acks = 0;
+
 int handle_new_peer(struct Server* server, void* args) {
     int fd = *(int*)args;
-    
-    fprintf(stdout, "New peer connected\n");
 
     return 0;
 }
@@ -17,14 +17,46 @@ int handle_new_peer(struct Server* server, void* args) {
 int handle_peer_message(struct Server* server, int fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_SEND_USER_LIST: {
+            remaining_acks = p2p_broadcast_review_request(server);
+            
+            if (remaining_acks == 0) {
+                utente_update_state(STATE_DONE_WORK);
+            }
+            break;
+        }
+
+        case MSG_REVIEW_CARD: {
+            fprintf(stdout, "P2P: Received review request from peer.\n");
+
+            struct Message response = {
+                .type = MSG_DONE_REVIEW,
+                .payload_length = 0,
+                .payload = NULL,
+            };
+
+            send_message(fd, &response);
 
             break;
         }
 
+        case MSG_DONE_REVIEW: {
+            fprintf(stdout, "P2P: Received done review from peer.\n");
+
+            remaining_acks--;
+
+            if (remaining_acks == 0) {
+                utente_update_state(STATE_DONE_WORK);
+            }
+            break;
+        }
+
         default:
+            fprintf(stderr, "P2P: Unknown message type from peer.\n");
             break;
     }
-    return 0;
+
+    // Default to close the connection
+    return -1;
 }
 
 int handle_peer(struct Server* server, void* args) {
@@ -39,7 +71,6 @@ int handle_peer(struct Server* server, void* args) {
 
     ssize_t bytes_received = receive_message(fd, &msg);
     if (bytes_received <= 0) {
-        fprintf(stdout, "Peer disconnected\n");
         return -1;
     }
 

@@ -109,3 +109,19 @@ void utente_wait_for_p2p_shutdown() {
 void utente_wait_for_worker_shutdown() {
     pthread_join(utente.worker_thread, NULL);
 }
+
+int utente_get_users(in_port_t** user_ports) {
+    if (utente.num_users == 0 || !utente.user_list) {
+        *user_ports = NULL;
+        return 0;
+    }
+
+    *user_ports = malloc(utente.num_users * sizeof(in_port_t));
+    if (!*user_ports) {
+        fprintf(stderr, "Error: Could not allocate memory for user ports.\n");
+        return -1;
+    }
+
+    memcpy(*user_ports, utente.user_list, utente.num_users * sizeof(in_port_t));
+    return utente.num_users;
+}

@@ -20,7 +20,7 @@ void* worker_thread_function(void* arg) {
 
     // Notifico il completamento del lavoro
     fprintf(stdout, "Worker: work completed.\n");
-    utente_update_state(STATE_WAITING_UL);
+    utente_update_state(STATE_REQUESTING_UL);
 
     pthread_exit(NULL);
 }

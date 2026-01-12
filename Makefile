@@ -7,14 +7,14 @@ LDFLAGS :=
 COMMON_SRC := src/common/server.c src/common/protocol.c src/common/client.c
 COMMON_OBJ := $(COMMON_SRC:.c=.o)
 
-UTENTE_SRC := src/utente/p2p_thread.c src/utente/worker_thread.c src/utente/utente_state.c src/utente/utente_utils.c
+UTENTE_SRC := src/utente/p2p_thread.c src/utente/worker_thread.c src/utente/utente_state.c src/utente/utente_utils.c src/utente/p2p_utils.c
 UTENTE_OBJ := $(UTENTE_SRC:.c=.o) 
 
 LAVAGNA_SRC := src/lavagna/database.c src/lavagna/lavagna_utils.c
 LAVAGNA_OBJ := $(LAVAGNA_SRC:.c=.o)
 
 # Headers (for dependency tracking)
-HEADERS := include/server.h include/protocol.h include/client.h include/common.h include/thread.h include/utente_state.h include/database.h include/utente_utils.h include/lavagna_utils.h
+HEADERS := include/server.h include/protocol.h include/client.h include/common.h include/thread.h include/utente_state.h include/database.h include/utente_utils.h include/lavagna_utils.h include/p2p_utils.h
 
 # Executables
 TARGETS := utente lavagna

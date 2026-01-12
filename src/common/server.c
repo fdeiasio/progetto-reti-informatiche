@@ -1,13 +1,7 @@
 #include "../../include/common.h"
 #include "../../include/server.h"
 
-/**
- * Aggiunge il file descriptor fd al set di monitoraggio del server.
- * Ritorna 0 in caso di successo, -1 in caso di errore.
- * Quando arriverà un messaggio su questo fd, la callback client_handler
- * verrà chiamata automaticamente.
- */
-static int server_add_fd(struct Server* server, int fd) {
+int server_add_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
@@ -21,12 +15,7 @@ static int server_add_fd(struct Server* server, int fd) {
     return 0;
 }
 
-/**
- * Rimuove il file descriptor fd dal set di monitoraggio del server
- * e chiude il file descriptor.
- * Ritorna 0 in caso di successo, -1 in caso di errore.
- */
-static int server_remove_fd(struct Server* server, int fd) {
+int server_remove_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;

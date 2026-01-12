@@ -8,6 +8,6 @@ extern void send_server_hello(struct Client* client);
 
 extern void send_server_card_ack(struct Client* client);
 
-extern void send_p2p_user_list(struct Client* client);
+extern void send_p2p_user_list();
 
 #endif // UTENTE_UTILS_H

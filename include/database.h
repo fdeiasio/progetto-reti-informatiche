@@ -89,7 +89,7 @@ extern int database_create_card(const char* text);
 
 extern int database_card_doing(in_port_t user_id);
 
-extern int database_card_done(int card_id);
+extern int database_card_done(in_port_t user_id);
 
 extern int database_card_todo(in_port_t user_id);
 

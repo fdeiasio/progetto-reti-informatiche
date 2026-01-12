@@ -62,6 +62,21 @@ struct ServerConfig {
 };
 
 /**
+ * Aggiunge il file descriptor fd al set di monitoraggio del server.
+ * Ritorna 0 in caso di successo, -1 in caso di errore.
+ * Quando arriverà un messaggio su questo fd, la callback client_handler
+ * verrà chiamata automaticamente.
+ */
+extern int server_add_fd(struct Server* server, int fd);
+
+/**
+ * Rimuove il file descriptor fd dal set di monitoraggio del server
+ * e chiude il file descriptor.
+ * Ritorna 0 in caso di successo, -1 in caso di errore.
+ */
+extern int server_remove_fd(struct Server* server, int fd);
+
+/**
  * Crea un nuovo server con la configurazione specificata.
  * Ritorna un puntatore al server creato, o NULL in caso di errore.
  */

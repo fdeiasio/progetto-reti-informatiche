@@ -13,6 +13,7 @@ enum UtenteState{
     STATE_REQUESTING_UL,
     STATE_WAITING_UL,
     STATE_WAITING_ACK,
+    STATE_DONE_WORK,
 
     STATE_DISCONNECTING,
     STATE_SHUTTING_DOWN,
@@ -50,7 +51,7 @@ extern in_port_t utente_get_port();
 
 extern int utente_allocate_user_list(in_port_t** user_list, int num_users);
 
-extern int* utente_get_users();
+extern int utente_get_users(in_port_t** user_ports);
 
 extern void utente_show_user_list();
 

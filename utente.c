@@ -75,6 +75,8 @@ int handle_server_message(struct Client* client, struct Message* msg) {
 
             if (utente_get_state() == STATE_WAITING_UL) {
                 utente_update_state(STATE_WAITING_ACK);
+
+                send_p2p_user_list();
             }
 
             break;
@@ -178,7 +180,6 @@ int main(int argc, char *argv[]) {
                 break;
 
             case STATE_WORKING:
-                
 
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
@@ -187,7 +188,7 @@ int main(int argc, char *argv[]) {
 
             case STATE_REQUESTING_UL:
                 utente_wait_for_worker_shutdown();
-
+                
                 struct Message msg = {
                     .type = MSG_REQUEST_USER_LIST,
                     .payload_length = 0,
@@ -211,6 +212,21 @@ int main(int argc, char *argv[]) {
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
                 }
+                break;
+
+            case STATE_DONE_WORK:
+                fprintf(stdout, "Review completed.\n");
+                
+                utente_set_card_id(-1);
+
+                struct Message done_msg = {
+                    .type = MSG_CARD_DONE,
+                    .payload_length = 0,
+                    .payload = NULL,
+                };
+                send_message(client->server_socket, &done_msg);
+
+                utente_update_state(STATE_IDLE);
                 break;
             case STATE_DISCONNECTING:
                 // Wait for shutdown signal from p2p thread
