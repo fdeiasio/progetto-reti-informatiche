@@ -1,7 +1,7 @@
 #ifndef DATABASE_H
 #define DATABASE_H
 
-#include "pch.h"
+#include "common.h"
 
 enum UserStatus {
     USER_STATE_IDLE,

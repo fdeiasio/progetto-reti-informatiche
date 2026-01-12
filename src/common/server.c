@@ -1,7 +1,13 @@
-#include "pch.h"
-#include "server.h"
+#include "../../include/common.h"
+#include "../../include/server.h"
 
-int server_add_fd(struct Server* server, int fd) {
+/**
+ * Aggiunge il file descriptor fd al set di monitoraggio del server.
+ * Ritorna 0 in caso di successo, -1 in caso di errore.
+ * Quando arriverà un messaggio su questo fd, la callback client_handler
+ * verrà chiamata automaticamente.
+ */
+static int server_add_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
@@ -15,7 +21,12 @@ int server_add_fd(struct Server* server, int fd) {
     return 0;
 }
 
-int server_remove_fd(struct Server* server, int fd) {
+/**
+ * Rimuove il file descriptor fd dal set di monitoraggio del server
+ * e chiude il file descriptor.
+ * Ritorna 0 in caso di successo, -1 in caso di errore.
+ */
+static int server_remove_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
         fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
@@ -77,15 +88,16 @@ int server_init(struct Server* server) {
         return -1;
     }
 
+    // Ignoro la signal SIGPIPE per evitare che il server termini improvvisamente
     signal(SIGPIPE, SIG_IGN);
     
+    // Aggiungo il socket del server al set di monitoraggio per gestire le nuove connessioni
     server_add_fd(server, server->socket_fd);
 
+    // Aggiungo lo standard input al set di monitoraggio se è definita una stdin_handler
     if (server->stdin_handler) {
         server_add_fd(server, STDIN_FILENO);
     }
-
-    fprintf(stdout, "Server started on port %d\n", ntohs(server->addr.sin_port));
 
     return 0;
 }
@@ -108,6 +120,7 @@ int server_run(struct Server* server) {
         return -1;
     }
 
+    // Se non c'è attività, ritorno 0 per continuare il loop
     if (activity == 0) {
         return 0; 
     }
@@ -118,6 +131,8 @@ int server_run(struct Server* server) {
         }
 
         if (fd == server->socket_fd) {
+            // Gestisco un nuovo client in arrivo
+
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
 
@@ -132,17 +147,23 @@ int server_run(struct Server* server) {
                 continue;
             }
 
+            // Chiamo la callback per il nuovo client
             if (server->new_client_handler(server, &new_fd) < 0) {
                 server_remove_fd(server, new_fd);
                 continue;
             }
         }
         else if (fd == STDIN_FILENO) {
+            // Gestisco l'input da stdin
+
             if (server->stdin_handler(server, NULL) < 0) {
+                // Chiudo il server se stdin_handler ritorna -1
                 return -1;
             }
         }
         else {
+            // Gestisco un messaggio da un client esistente
+
             int arg = fd;
             if (server->client_handler(server, &arg) < 0) {
                 server_remove_fd(server, fd);

@@ -1,16 +1,11 @@
-#include "pch.h"
-#include "client.h"
+#include "../../include/common.h"
+#include "../../include/client.h"
 
 struct Client* client_create(struct ClientConfig config) {
     struct Client* client = (struct Client*)malloc(sizeof(struct Client));
     if (!client) {
         return NULL;
     }
-
-    client->port = config.client_port;
-
-    client->state = STATE_STARTING_P2P;
-    pthread_mutex_init(&client->state_mutex, NULL);
 
     client->server_socket = -1;
     client->server_addr.sin_family = AF_INET;
@@ -23,74 +18,44 @@ struct Client* client_create(struct ClientConfig config) {
     FD_SET(STDIN_FILENO, &client->master_set);
     client->max_fd = STDIN_FILENO;
 
-    client->card_id = -1;
-    client->user_list = NULL;
-    client->num_users = 0;
-
     client->server_handler = config.server_handler;
     client->stdin_handler = config.stdin_handler;
 
     return client;
 }
 
-void client_update_state(struct Client* client, enum ClientState new_state) {
-    pthread_mutex_lock(&client->state_mutex);
-    client->state = new_state;
-    pthread_mutex_unlock(&client->state_mutex);
-}
-
-void client_start_p2p(struct Client* client, void* p2p_server_function(void*)) {
-    if (pthread_create(&client->p2p_server_thread, NULL, p2p_server_function, client) != 0) {
-        fprintf(stderr, "Error: Could not create P2P server thread.\n");
-        exit(1);
-    }
-}
-
-void client_stop_p2p(struct Client* client) {
-    client_update_state(client, STATE_DISCONNECTING);
-    pthread_join(client->p2p_server_thread, NULL);
-}
-
-void client_start_worker(struct Client* client, void* worker_thread_function(void*)) {
-    if (pthread_create(&client->worker_thread, NULL, worker_thread_function, client) != 0) {
-        fprintf(stderr, "Error: Could not create worker thread.\n");
-        exit(1);
-    }
-}
-
-void client_connect_to_server(struct Client* client) {
+int client_connect_to_server(struct Client* client) {
     fprintf(stdout, "Connecting to server...\n");
 
     client->server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client->server_socket < 0) {
         fprintf(stderr, "Error: Could not create socket.\n");
-        exit(1);
+        return -1;
     }
 
     if (connect(client->server_socket, (struct sockaddr *)&client->server_addr, sizeof(client->server_addr)) < 0) {
         fprintf(stderr, "Error: Could not connect to server.\n");
         close(client->server_socket);
-        exit(1);
+        client->server_socket = -1;
+        return -1;
     }
 
     FD_SET(client->server_socket, &client->master_set);
     if (client->server_socket > client->max_fd) {
         client->max_fd = client->server_socket;
     }
+
+    return 0;
 }
 
-void client_disconnect_from_server(struct Client* client) {
+void client_destroy(struct Client* client) {
     if (client->server_socket != -1) {
         close(client->server_socket);
         FD_CLR(client->server_socket, &client->master_set);
         client->server_socket = -1;
     }
-}
 
-void client_destroy(struct Client* client) {
     if (client) {
-        pthread_mutex_destroy(&client->state_mutex);
-        free(client->user_list);
         free(client);
     }
 }

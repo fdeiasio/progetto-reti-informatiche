@@ -1,14 +1,14 @@
-#include "pch.h"
-#include "server.h"
-#include "p2p_thread.h"
-#include "client.h"
-#include "protocol.h"
+#include "../../include/common.h"
+#include "../../include/server.h"
+#include "../../include/protocol.h"
+#include "../../include/thread.h"
+#include "../../include/utente_state.h"
 
 #define LOCALHOST "127.0.0.1"
 
-void send_review_request(struct Client* client) {
-    for (int i = 0; i < client->num_users; i++) {
-        in_port_t peer_port = client->user_list[i];
+void send_review_request(struct Utente* utente) {
+    for (int i = 0; i < utente->num_users; i++) {
+        in_port_t peer_port = utente->user_list[i];
 
         int p2p_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (p2p_socket < 0) {
@@ -26,7 +26,7 @@ void send_review_request(struct Client* client) {
             continue;
         }
 
-        uint32_t card_id = htonl(client->card_id);
+        uint32_t card_id = htonl(utente->card_id);
 
         struct Message msg = {
             .type = MSG_REVIEW_CARD,
@@ -85,31 +85,32 @@ int handle_peer(struct Server* server, void* args) {
 }
 
 void* p2p_server_function(void* arg) {
-    struct Client* client = (struct Client*) arg;
+    struct Utente* utente = (struct Utente*) arg;
     struct ServerConfig config = {
-        .port = client->port,
+        .port = utente->port,
         .new_client_handler = handle_new_peer,
         .client_handler = handle_peer,
         .stdin_handler = NULL,
     };
     struct Server* peer = server_create(config);
     if (!peer) {
-        client_update_state(client, STATE_SHUTTING_DOWN);
+        utente_update_state(utente, STATE_SHUTTING_DOWN);
         pthread_exit(0);
     }
 
     if (server_init(peer) < 0) {
         server_shutdown(peer);
-        client_update_state(client, STATE_SHUTTING_DOWN);
+        utente_update_state(utente, STATE_SHUTTING_DOWN);
         pthread_exit(0);
     }
 
-    client_update_state(client, STATE_CONNECTING);
+    utente_update_state(utente, STATE_CONNECTING);
     
-    while (client->state != STATE_DISCONNECTING && server_run(peer) == 0)
+    while (utente->state != STATE_DISCONNECTING && server_run(peer) == 0)
         ;
 
     server_shutdown(peer);
-    client_update_state(client, STATE_SHUTTING_DOWN);
+
+    utente_update_state(utente, STATE_SHUTTING_DOWN);
     pthread_exit(0);
 }

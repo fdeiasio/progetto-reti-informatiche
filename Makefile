@@ -4,11 +4,18 @@ CFLAGS  := -Wall -Wextra -pedantic -std=c11
 LDFLAGS :=
 
 # Source files
-COMMON_SRC := lib/server.c lib/p2p_thread.c lib/protocol.c lib/client.c lib/database.c lib/worker_thread.c
+COMMON_SRC := src/common/server.c src/common/protocol.c src/common/client.c
 COMMON_OBJ := $(COMMON_SRC:.c=.o)
 
+UTENTE_SRC := src/utente/p2p_thread.c src/utente/worker_thread.c src/utente/utente_state.c src/utente/utente_utils.c
+UTENTE_OBJ := $(UTENTE_SRC:.c=.o) 
+
+LAVAGNA_SRC := src/lavagna/database.c 
+LAVAGNA_OBJ := $(LAVAGNA_SRC:.c=.o)
+
 # Headers (for dependency tracking)
-HEADERS := lib/server.h lib/p2p_thread.h lib/protocol.h lib/client.h lib/database.h lib/worker_thread.h lib/pch.h
+HEADERS := include/server.h include/protocol.h include/client.h include/common.h include/thread.h include/utente_state.h include/database.h include/utente_utils.h
+
 # Executables
 TARGETS := utente lavagna
 
@@ -16,11 +23,11 @@ TARGETS := utente lavagna
 all: $(TARGETS)
 
 # Utente (client)
-utente: utente.o $(COMMON_OBJ)
+utente: utente.o $(COMMON_OBJ) $(UTENTE_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 # Lavagna (server)
-lavagna: lavagna.o $(COMMON_OBJ)
+lavagna: lavagna.o $(COMMON_OBJ) $(LAVAGNA_OBJ)
 	$(CC) $(LDFLAGS) -o $@ $^
 
 # Generic rule for object files
@@ -30,7 +37,7 @@ lavagna: lavagna.o $(COMMON_OBJ)
 # Clean build artifacts
 clean:
 	rm -f $(TARGETS) *.o
-	rm -f lib/*.o
+	rm -f src/**/*.o
 
 # Run the server
 run-server: lavagna

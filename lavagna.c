@@ -1,9 +1,8 @@
-#include "lib/pch.h"
-#include "lib/server.h"
-#include "lib/protocol.h"
-#include "lib/database.h"
+#include "include/common.h"
+#include "include/server.h"
+#include "include/protocol.h"
+#include "include/database.h"
 
-#define SERVER_PORT 5678
 #define MAX_USERS 100
 
 static volatile sig_atomic_t active = 1;
@@ -253,6 +252,7 @@ int main() {
         exit(1);
     }
 
+    fprintf(stdout, "Lavagna server started on port %d\n", SERVER_PORT);
     while(active && server_run(lavagna) == 0)
         ;
 

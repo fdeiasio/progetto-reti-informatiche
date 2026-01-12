@@ -1,7 +1,7 @@
 #ifndef PROTOCOL_H
 #define PROTOCOL_H
 
-#include "pch.h"
+#include "common.h"
 
 #define MAX_PAYLOAD_SIZE 256
 

@@ -1,5 +1,5 @@
-#include "pch.h"
-#include "protocol.h"
+#include "../../include/common.h"
+#include "../../include/protocol.h"
  
 /* ==== Costanti e Tabelle di Supporto ==== */
 const char *MESSAGE_TO_STRING[NUM_MSG_TYPES] = {
@@ -87,7 +87,10 @@ ssize_t receive_message(int socket, struct Message* msg) {
 
 static void clear_stdin_buffer() {
     int c;
-    while ((c = getchar()) != '\n' && c != EOF) { }
+    fprintf(stderr, "adding clear stdin buffer\n");
+    while ((c = getchar()) != '\n' && c != EOF) { 
+        
+    }
 }
 
 ssize_t get_command_line_input(struct Message* msg) {
@@ -98,15 +101,17 @@ ssize_t get_command_line_input(struct Message* msg) {
         fprintf(stderr, "Error: Could not read from stdin.\n");
         return -1;
     }
+    
+    if (buffer[input_length - 1] != '\n') {
+        fprintf(stderr, "Error: Input line too long.\n");
+        clear_stdin_buffer();
+        return -1;
+    }
     buffer[input_length - 1] = '\0';
-
-    // Pulisco il buffer di stdin per sicurezza
-    clear_stdin_buffer();
     
     // Identifico il tipo di messaggio
     msg->type = MSG_ERR;
     for (int i = 1; i < NUM_MSG_TYPES; i++) {
-        printf("arrived here: %d\n", i);
         if (strncmp(buffer, MESSAGE_TO_STRING[i], strlen(MESSAGE_TO_STRING[i])) == 0) {
             msg->type = i;
         }

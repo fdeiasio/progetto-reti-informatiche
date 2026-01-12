@@ -1,5 +1,5 @@
-#include "pch.h"
-#include "database.h"
+#include "../../include/common.h"
+#include "../../include/database.h"
 
 struct Database database;
 
