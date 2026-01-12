@@ -399,7 +399,6 @@ int database_card_get_text(int card_id, char* buffer, size_t buffer_size) {
     strncpy(buffer, card->text, buffer_size - 1);
     buffer[buffer_size - 1] = '\0';
 
-    fprintf(stdout, "database_card_get_text: card_id=%d, text=%s\n", card_id, buffer);
     return 0;
 }
 

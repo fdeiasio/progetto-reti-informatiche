@@ -34,20 +34,33 @@ struct Utente {
     pthread_t worker_thread;
 };
 
-// Struct globale dello stato dell'utente
-extern struct Utente utente;
+extern int utente_init(in_port_t port);
 
-extern int utente_init(struct Utente* utente, in_port_t port);
+extern enum UtenteState utente_get_state();
 
-extern void utente_update_state(struct Utente* utente, enum UtenteState new_state);
+extern void utente_update_state(enum UtenteState new_state);
 
-extern int utente_start_p2p(struct Utente* utente, void* p2p_server_function(void*));
+extern int utente_start_p2p(void* p2p_server_function(void*));
 
-extern int utente_start_worker(struct Utente* utente, void* worker_thread_function(void*));
+extern int utente_start_worker(void* worker_thread_function(void*));
 
-extern void utente_cleanup(struct Utente* utente);
+extern void utente_cleanup();
 
-extern in_port_t utente_get_port(struct Utente* utente);
+extern in_port_t utente_get_port();
+
+extern int utente_allocate_user_list(in_port_t** user_list, int num_users);
+
+extern int* utente_get_users();
+
+extern void utente_show_user_list();
+
+extern int utente_get_card_id();
+
+extern void utente_set_card_id(int card_id);
+
+extern void utente_wait_for_p2p_shutdown();
+
+extern void utente_wait_for_worker_shutdown();
 
 
 #endif // UTENTE_STATE_H

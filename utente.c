@@ -29,21 +29,11 @@ int handle_stdin_message(struct Client* client, struct Message* msg) {
                 return 0;
             }
 
-            if (send_message(client->server_socket, msg) < 0) {
-                fprintf(stderr, "Error: Could not send CREATE_CARD message to server.\n");
-                return 0;
-            }
-            
-            fprintf(stdout, "Sent CREATE_CARD message to server\n");
+            send_message(client->server_socket, msg);
             break;
 
         case MSG_REQUEST_USER_LIST:
-            if (send_message(client->server_socket, msg) < 0) {
-                fprintf(stderr, "Error: Could not send REQUEST_USER_LIST message to server.\n");
-                return 0;
-            }
-
-            fprintf(stdout, "Sent REQUEST_USER_LIST message to server\n");
+            send_message(client->server_socket, msg);
             break;
 
         default:
@@ -72,30 +62,19 @@ int handle_server_message(struct Client* client, struct Message* msg) {
         case MSG_SEND_USER_LIST: {
             fprintf(stdout, "Received peer list from server:\n");
 
+            // Parse the message
             int num_users = msg->payload_length / sizeof(in_port_t);
             in_port_t* user_ports = (in_port_t*)msg->payload;
 
-            if (num_users == 0) {
-                fprintf(stdout, "(no users)\n");
-            } else {
-                for (int i = 0; i < num_users; i++) {
-                    fprintf(stdout, "- User on port %d\n", ntohs(user_ports[i]));
-                }
+            for (int i = 0; i < num_users; i++) {
+                user_ports[i] = ntohs(user_ports[i]);
             }
 
-            if (utente.user_list) {
-                free(utente.user_list);
-            }
-            utente.user_list = malloc(num_users * sizeof(in_port_t));
-            if (!utente.user_list) {
-                fprintf(stderr, "Error: Could not allocate memory for user list.\n");
-                exit(1);
-            }
-            memcpy(utente.user_list, user_ports, num_users * sizeof(in_port_t));
-            utente.num_users = num_users;
+            utente_allocate_user_list(&user_ports, num_users);
+            utente_show_user_list();
 
-            if (utente.state == STATE_WAITING_UL) {
-                utente_update_state(&utente, STATE_WAITING_ACK);
+            if (utente_get_state() == STATE_WAITING_UL) {
+                utente_update_state(STATE_WAITING_ACK);
             }
 
             break;
@@ -104,16 +83,17 @@ int handle_server_message(struct Client* client, struct Message* msg) {
         case MSG_HANDLE_CARD:
             fprintf(stdout, "Server assigned you a card to handle.\n");
 
-            if (utente.state != STATE_IDLE) {
+            if (utente_get_state() != STATE_IDLE) {
                 break;
             }
 
-            utente.card_id = ntohl(*(uint32_t*)msg->payload);
-            utente_update_state(&utente, STATE_WORKING);
-            utente_start_worker(&utente, worker_thread_function);
+            int card_id = ntohl(*(uint32_t*)msg->payload);
+            utente_set_card_id(card_id);
+
+            utente_update_state(STATE_WORKING);
+            utente_start_worker(worker_thread_function);
 
             send_server_card_ack(client);
-
             break;
 
         default:
@@ -153,7 +133,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }  
 
-    utente_init(&utente, port);
+    utente_init(port);
 
     struct ClientConfig config = {
         .server_port = SERVER_PORT,
@@ -172,10 +152,12 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    utente_start_p2p(&utente, p2p_server_function);
+    utente_start_p2p(p2p_server_function);
 
-    while (running && utente.state != STATE_SHUTTING_DOWN) {
-        switch (utente.state) {
+    while (running && utente_get_state() != STATE_SHUTTING_DOWN) {
+        enum UtenteState current_state = utente_get_state();
+
+        switch (current_state) {
             case STATE_STARTING_P2P:
                 // Waiting for P2P server to start
                 break;
@@ -185,13 +167,13 @@ int main(int argc, char *argv[]) {
 
                 send_server_hello(client);
 
-                utente_update_state(&utente, STATE_IDLE);
+                utente_update_state(STATE_IDLE);
                 break;
 
             case STATE_IDLE:
 
                 if (client_listen(client) < 0) {
-                    utente_update_state(&utente, STATE_DISCONNECTING);
+                    utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
 
@@ -199,12 +181,12 @@ int main(int argc, char *argv[]) {
                 
 
                 if (client_listen(client) < 0) {
-                    utente_update_state(&utente, STATE_DISCONNECTING);
+                    utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
 
             case STATE_REQUESTING_UL:
-                pthread_join(utente.worker_thread, NULL);
+                utente_wait_for_worker_shutdown();
 
                 struct Message msg = {
                     .type = MSG_REQUEST_USER_LIST,
@@ -214,20 +196,20 @@ int main(int argc, char *argv[]) {
 
                 send_message(client->server_socket, &msg);
 
-                utente_update_state(&utente, STATE_WAITING_UL);
+                utente_update_state(STATE_WAITING_UL);
                 break;
 
             case STATE_WAITING_UL:
 
                 if (client_listen(client) < 0) {
-                    utente_update_state(&utente, STATE_DISCONNECTING);
+                    utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
 
             case STATE_WAITING_ACK:
 
                 if (client_listen(client) < 0) {
-                    utente_update_state(&utente, STATE_DISCONNECTING);
+                    utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
             case STATE_DISCONNECTING:
@@ -236,8 +218,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    client_destroy(client);
+    utente_wait_for_p2p_shutdown();
 
-    utente_cleanup(&utente);
+    client_destroy(client);
+    utente_cleanup();
     exit(0);
 }

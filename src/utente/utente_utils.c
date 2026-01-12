@@ -5,7 +5,7 @@
 #include "../../include/protocol.h"
 
 void send_server_hello(struct Client* client) {
-    in_port_t port_network = htons(utente.port);
+    in_port_t port_network = htons(utente_get_port());
     struct Message msg = {
         .type = MSG_HELLO,
         .payload_length = sizeof(port_network),
@@ -43,7 +43,7 @@ void send_p2p_user_list(struct Client* client) {
     }
     struct sockaddr_in p2p_addr = {
         .sin_family = AF_INET,
-        .sin_port = htons(utente.port),
+        .sin_port = htons(utente_get_port()),
         .sin_addr.s_addr = inet_addr(LOCALHOST),
     };
 
@@ -65,4 +65,3 @@ void send_p2p_user_list(struct Client* client) {
 
     close(p2p_socket);
 }
-

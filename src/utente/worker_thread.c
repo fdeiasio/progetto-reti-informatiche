@@ -9,8 +9,8 @@
  * dormendo per un tempo casuale tra 1 e MAX_SLEEP secondi.
  */
 void* worker_thread_function(void* arg) {
-    struct Utente* utente = (struct Utente*) arg;
-
+    (void) arg;
+    
     srand(time(NULL));
     
     int sleep_time = (rand() % MAX_SLEEP) + 1;
@@ -20,7 +20,7 @@ void* worker_thread_function(void* arg) {
 
     // Notifico il completamento del lavoro
     fprintf(stdout, "Worker: work completed.\n");
-    utente_update_state(utente, STATE_WAITING_UL);
+    utente_update_state(STATE_WAITING_UL);
 
     pthread_exit(NULL);
 }
