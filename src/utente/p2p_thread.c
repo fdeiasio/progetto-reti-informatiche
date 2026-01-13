@@ -72,8 +72,8 @@ void* p2p_server_function(void* arg) {
     struct ServerConfig config = {
         .port = utente_get_port(),
 
-        .client_handler = handle_peer,
-        .stdin_handler = NULL,
+        .client_message_callback = handle_peer,
+        .stdin_message_callback = NULL,
     };
     struct Server* peer = server_create(config);
     if (!peer) {

@@ -5,13 +5,8 @@
 
 #define MAX_PAYLOAD_SIZE 256
 
-/**
- * Questo header definisce il protocollo di comunicazione tra client e server.
- * Include la definizione dei tipi di messaggi, la struttura del messaggio e
- * le funzioni per inviare e ricevere messaggi. 
- */
+// Questo header definisce il protocollo di comunicazione tra client e server.
 
-/* Questo enum definisce il tipo dei messaggi che possono essere scambiati */
 enum MessageType{
     MSG_ERR,                // Messaggio di errore, non può essere inviato   
      
@@ -39,38 +34,24 @@ enum MessageType{
     NUM_MSG_TYPES,          // Numero totale di tipi di messaggi
 };
 
-/* *
- * Questa struct tiene la struttura di un messaggio.
- *
- * type: Tipo del messaggio (definito nell'enum MessageType)
- * payload_length: Lunghezza del payload in byte
- * payload: Puntatore al payload del messaggio
- */
+
+// Struttua che tiene un messaggio
 struct Message {
     uint32_t type;
     uint32_t payload_length;
     void* payload;
 };
 
-/* *
- * Invia il messaggio msg atraverso il socket socket.
- * Ritorna il numero di byte inviati, o -1 in caso di errore.
- */
+// Invia un messaggio attraverso il socket
+// Ritorna il numero di byte inviati, o -1 in caso di errore.
 ssize_t send_message(int socket, struct Message* msg);
 
-/* *
- * Riceve un messaggio dal socket socket e lo memorizza in msg.
- * Ritorna il numero di byte ricevuti, o -1 in caso di errore.
- * Si assicura che msg->payload sia allocato con sufficiente spazio
- */
+// Riceve un messaggio dal socket
+// Ritorna il numero di byte ricevuti, o -1 in caso di errore
 ssize_t receive_message(int socket, struct Message* msg);
 
-/* *
- * Legge l'input da linea di comando e lo memorizza in msg.
- * Ritorna la lunghezza dell'input letto, o -1 in caso di errore.
- * 
- * La lunghezza massima dell'input è MAX_PAYLOAD_SIZE.
- */
+// Legge l'input da linea di comando e lo converte in un messaggio
+// Ritorna il numero di byte letti, o -1 in caso di errore
 ssize_t get_command_line_input(struct Message* msg);
 
 #endif // PROTOCOL_H

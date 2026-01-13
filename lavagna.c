@@ -198,8 +198,8 @@ int main() {
     struct ServerConfig config = {
         .port = SERVER_PORT,
         
-        .client_handler = handle_client,
-        .stdin_handler = handle_stdin,
+        .client_message_callback = handle_client,
+        .stdin_message_callback = handle_stdin,
     };
     struct Server* lavagna = server_create(config);
     if (!lavagna) {

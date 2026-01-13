@@ -40,7 +40,6 @@ ssize_t send_message(int socket, struct Message* msg) {
 
     // Mi assicuro che il payload non sia NULL
     if (!msg->payload) {
-        fprintf(stderr, "Error: Payload is NULL.\n");
         return -1;
     }
 
@@ -72,7 +71,6 @@ ssize_t receive_message(int socket, struct Message* msg) {
 
     // Mi assicuro che il payload sia allocato con sufficiente spazio
     if (!msg->payload) {
-        fprintf(stderr, "Error: Payload buffer is NULL.\n");
         return -1;
     }
 
@@ -85,12 +83,11 @@ ssize_t receive_message(int socket, struct Message* msg) {
     return bytes_received + sizeof(buffer);
 }
 
+// Funzione di utility per pulire il buffer
 static void clear_stdin_buffer() {
     int c;
-    fprintf(stderr, "adding clear stdin buffer\n");
-    while ((c = getchar()) != '\n' && c != EOF) { 
-        
-    }
+    while ((c = getchar()) != '\n' && c != EOF)
+        ;
 }
 
 ssize_t get_command_line_input(struct Message* msg) {
@@ -98,12 +95,10 @@ ssize_t get_command_line_input(struct Message* msg) {
     char buffer[MAX_PAYLOAD_SIZE];
     ssize_t input_length = read(STDIN_FILENO, buffer, sizeof(buffer) - 1);
     if (input_length < 0) {
-        fprintf(stderr, "Error: Could not read from stdin.\n");
         return -1;
     }
     
     if (buffer[input_length - 1] != '\n') {
-        fprintf(stderr, "Error: Input line too long.\n");
         clear_stdin_buffer();
         return -1;
     }

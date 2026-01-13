@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+// Questo header contiene funzioni di utilità per l'applicazione lavagna
+
 #define WORKING_TIMEOUT_SECONDS 4
 #define PING_TIMEOUT_SECONDS 2
 #define TIMEOUT_CHECK_PERIOD 1

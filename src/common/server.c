@@ -1,9 +1,11 @@
 #include "../../include/common.h"
 #include "../../include/server.h"
 
-int server_add_fd(struct Server* server, int fd) {
+// Funzioni statiche di aiuto
+
+// Aggiunge un file descriptor al set di monitoraggio del server
+static int server_add_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
-        fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
     }
 
@@ -15,9 +17,9 @@ int server_add_fd(struct Server* server, int fd) {
     return 0;
 }
 
-int server_remove_fd(struct Server* server, int fd) {
+// Lo rimuove
+static int server_remove_fd(struct Server* server, int fd) {
     if (fd >= FD_SETSIZE) {
-        fprintf(stderr, "Error: File descriptor exceeds FD_SETSIZE.\n");
         return -1;
     }
 
@@ -36,11 +38,10 @@ int server_remove_fd(struct Server* server, int fd) {
 struct Server* server_create(struct ServerConfig config) {
     struct Server* server = (struct Server*)malloc(sizeof(struct Server));
     if (!server) {
-        fprintf(stderr, "Error: Could not allocate memory for server.\n");
         return NULL;
     }
 
-    server->socket_fd = -1;
+    server->socket = -1;
     server->addr.sin_family = AF_INET;
     server->addr.sin_port = htons(config.port);
     server->addr.sin_addr.s_addr = INADDR_ANY;
@@ -48,37 +49,33 @@ struct Server* server_create(struct ServerConfig config) {
     FD_ZERO(&server->master_set);
     server->max_fd = 0;
 
-    server->stdin_handler = config.stdin_handler;
-    server->client_handler = config.client_handler;
+    server->stdin_message_callback = config.stdin_message_callback;
+    server->client_message_callback = config.client_message_callback;
 
     return server;
 }
 
 int server_init(struct Server* server) {
-    server->socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server->socket_fd < 0) {
-        fprintf(stderr, "Error: Could not create socket.\n");
+    server->socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server->socket < 0) {
         return -1;
     }
 
-    if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        fprintf(stderr, "Error: Could not set socket options.\n");
-        close(server->socket_fd);
-        server->socket_fd = -1;
+    if (setsockopt(server->socket, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        close(server->socket);
+        server->socket = -1;
         return -1;
     }
 
-    if (bind(server->socket_fd, (struct sockaddr *)&server->addr, sizeof(server->addr)) < 0) {
-        fprintf(stderr, "Error: Could not bind socket.\n");
-        close(server->socket_fd);
-        server->socket_fd = -1;
+    if (bind(server->socket, (struct sockaddr *)&server->addr, sizeof(server->addr)) < 0) {
+        close(server->socket);
+        server->socket = -1;
         return -1;
     }
 
-    if (listen(server->socket_fd, 10) < 0) {
-        fprintf(stderr, "Error: Could not listen on socket.\n");
-        close(server->socket_fd);
-        server->socket_fd = -1;
+    if (listen(server->socket, 10) < 0) {
+        close(server->socket);
+        server->socket = -1;
         return -1;
     }
 
@@ -86,10 +83,10 @@ int server_init(struct Server* server) {
     signal(SIGPIPE, SIG_IGN);
     
     // Aggiungo il socket del server al set di monitoraggio per gestire le nuove connessioni
-    server_add_fd(server, server->socket_fd);
+    server_add_fd(server, server->socket);
 
-    // Aggiungo lo standard input al set di monitoraggio se è definita una stdin_handler
-    if (server->stdin_handler) {
+    // Aggiungo lo standard input al set di monitoraggio se è definita una callback
+    if (server->stdin_message_callback) {
         server_add_fd(server, STDIN_FILENO);
     }
 
@@ -106,11 +103,6 @@ int server_run(struct Server* server) {
 
     int activity = select(server->max_fd + 1, &read_fds, NULL, NULL, &timeout);
     if (activity < 0) {
-        if (errno == EINTR) {
-            return -1; 
-        }
-
-        fprintf(stderr, "Error: select() failed.\n");
         return -1;
     }
 
@@ -124,15 +116,14 @@ int server_run(struct Server* server) {
             continue;
         }
 
-        if (fd == server->socket_fd) {
+        if (fd == server->socket) {
             // Gestisco un nuovo client in arrivo
 
             struct sockaddr_in client_addr;
             socklen_t addr_len = sizeof(client_addr);
 
-            int new_fd = accept(server->socket_fd, (struct sockaddr *)&client_addr, &addr_len);
+            int new_fd = accept(server->socket, (struct sockaddr *)&client_addr, &addr_len);
             if (new_fd < 0) {
-                fprintf(stderr, "Error: Failed to accept connection.\n");
                 continue;
             }
 
@@ -145,8 +136,8 @@ int server_run(struct Server* server) {
         else if (fd == STDIN_FILENO) {
             // Gestisco l'input da stdin
 
-            if (server->stdin_handler(NULL) < 0) {
-                // Chiudo il server se stdin_handler ritorna -1
+            if (server->stdin_message_callback && server->stdin_message_callback(NULL) < 0) {
+                // Chiudo il server se stdin_message_callback ritorna -1
                 return -1;
             }
         }
@@ -154,7 +145,7 @@ int server_run(struct Server* server) {
             // Gestisco un messaggio da un client esistente
             
             int arg = fd;
-            if (server->client_handler(&arg) < 0) {
+            if (server->client_message_callback && server->client_message_callback(&arg) < 0) {
                 server_remove_fd(server, fd);
                 continue;
             }
@@ -168,8 +159,6 @@ void server_shutdown(struct Server* server) {
     if (!server) {
         return;
     }
-
-    fprintf(stdout, "\nShutting down server...\n");
 
     for (int fd = 0; fd <= server->max_fd; fd++) {
         if (FD_ISSET(fd, &server->master_set) && fd != STDIN_FILENO) {
