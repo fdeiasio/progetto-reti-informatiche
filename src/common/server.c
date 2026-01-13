@@ -48,7 +48,6 @@ struct Server* server_create(struct ServerConfig config) {
     FD_ZERO(&server->master_set);
     server->max_fd = 0;
 
-    server->new_client_handler = config.new_client_handler;
     server->stdin_handler = config.stdin_handler;
     server->client_handler = config.client_handler;
 
@@ -62,15 +61,15 @@ int server_init(struct Server* server) {
         return -1;
     }
 
-    if (bind(server->socket_fd, (struct sockaddr *)&server->addr, sizeof(server->addr)) < 0) {
-        fprintf(stderr, "Error: Could not bind socket.\n");
+    if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        fprintf(stderr, "Error: Could not set socket options.\n");
         close(server->socket_fd);
         server->socket_fd = -1;
         return -1;
     }
 
-    if (setsockopt(server->socket_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        fprintf(stderr, "Error: Could not set socket options.\n");
+    if (bind(server->socket_fd, (struct sockaddr *)&server->addr, sizeof(server->addr)) < 0) {
+        fprintf(stderr, "Error: Could not bind socket.\n");
         close(server->socket_fd);
         server->socket_fd = -1;
         return -1;
@@ -142,25 +141,20 @@ int server_run(struct Server* server) {
                 continue;
             }
 
-            // Chiamo la callback per il nuovo client
-            if (server->new_client_handler(server, &new_fd) < 0) {
-                server_remove_fd(server, new_fd);
-                continue;
-            }
         }
         else if (fd == STDIN_FILENO) {
             // Gestisco l'input da stdin
 
-            if (server->stdin_handler(server, NULL) < 0) {
+            if (server->stdin_handler(NULL) < 0) {
                 // Chiudo il server se stdin_handler ritorna -1
                 return -1;
             }
         }
         else {
             // Gestisco un messaggio da un client esistente
-
+            
             int arg = fd;
-            if (server->client_handler(server, &arg) < 0) {
+            if (server->client_handler(&arg) < 0) {
                 server_remove_fd(server, fd);
                 continue;
             }

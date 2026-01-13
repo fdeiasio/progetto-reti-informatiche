@@ -15,14 +15,14 @@ void signal_handler(int signum) {
     running = 0;
 }
 
-int handle_stdin_message(struct Client* client, struct Message* msg) {
+int handle_stdin_message(int server_fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO:
-            send_server_hello(client);
+            send_server_hello(server_fd);
             break;
 
         case MSG_QUIT:
-            send_message(client->server_socket, msg);
+            send_message(server_fd, msg);
             return -1;
 
         case MSG_CREATE_CARD:
@@ -31,11 +31,11 @@ int handle_stdin_message(struct Client* client, struct Message* msg) {
                 return 0;
             }
 
-            send_message(client->server_socket, msg);
+            send_message(server_fd, msg);
             break;
 
         case MSG_REQUEST_USER_LIST:
-            send_message(client->server_socket, msg);
+            send_message(server_fd, msg);
             break;
 
         default:
@@ -45,7 +45,9 @@ int handle_stdin_message(struct Client* client, struct Message* msg) {
     return 0;
 }
 
-int handle_stdin(struct Client* client) {
+int handle_stdin(void* args) {
+    int server_fd = *(int*)args;
+
     static char buffer[MAX_PAYLOAD_SIZE];
     struct Message msg = {
         .payload = buffer,
@@ -56,10 +58,10 @@ int handle_stdin(struct Client* client) {
         return 0;
     }
 
-    return handle_stdin_message(client, &msg);
+    return handle_stdin_message(server_fd, &msg);
 }
 
-int handle_server_message(struct Client* client, struct Message* msg) {
+int handle_server_message(int server_fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_SEND_USER_LIST: {
             fprintf(stdout, "Received peer list from server:\n");
@@ -97,8 +99,19 @@ int handle_server_message(struct Client* client, struct Message* msg) {
             utente_update_state(STATE_WORKING);
             utente_start_worker(worker_thread_function);
 
-            send_server_card_ack(client);
+            send_server_card_ack(server_fd);
             break;
+
+        case MSG_PING_USER:
+            fprintf(stdout, "Received PING_USER from server.\n");
+            
+            send_pong_server(server_fd);
+            
+            break;
+
+        case MSG_QUIT:
+            fprintf(stdout, "Timed out.\n");
+            return -1;
 
         default:
             fprintf(stderr, "Error: Unknown message type from server.\n");
@@ -107,7 +120,9 @@ int handle_server_message(struct Client* client, struct Message* msg) {
     return 0;
 }
 
-int handle_server(struct Client* client) {
+int handle_server(void* args) {
+    int server_fd = *(int*)args;
+
     char buffer[MAX_PAYLOAD_SIZE];
     memset(buffer, 0, MAX_PAYLOAD_SIZE);
 
@@ -116,13 +131,13 @@ int handle_server(struct Client* client) {
         .payload_length = MAX_PAYLOAD_SIZE,
     };
 
-    ssize_t bytes_received = receive_message(client->server_socket, &msg);
+    ssize_t bytes_received = receive_message(server_fd, &msg);
     if (bytes_received <= 0) {
         fprintf(stdout, "Disconnected from server\n");
         return -1;
     }
 
-    return handle_server_message(client, &msg);
+    return handle_server_message(server_fd, &msg);
 }
 
 int main(int argc, char *argv[]) {
@@ -169,7 +184,7 @@ int main(int argc, char *argv[]) {
             case STATE_CONNECTING:
                 client_connect_to_server(client);
 
-                send_server_hello(client);
+                send_server_hello(client->server_socket);
 
                 utente_update_state(STATE_IDLE);
                 break;

@@ -4,19 +4,12 @@
 #include "../../include/utente_state.h"
 #include "../../include/p2p_utils.h"
 
-#define LOCALHOST "127.0.0.1"
-
 static int remaining_acks = 0;
 
-int handle_new_peer(struct Server* server, void* args) {
-
-    return 0;
-}
-
-int handle_peer_message(struct Server* server, int fd, struct Message* msg) {
+int handle_peer_message(struct Message* msg) {
     switch (msg->type) {
         case MSG_SEND_USER_LIST: {
-            remaining_acks = p2p_broadcast_review_request(server);
+            remaining_acks = p2p_broadcast_review_request();
             
             if (remaining_acks == 0) {
                 utente_update_state(STATE_DONE_WORK);
@@ -25,21 +18,17 @@ int handle_peer_message(struct Server* server, int fd, struct Message* msg) {
         }
 
         case MSG_REVIEW_CARD: {
-            fprintf(stdout, "P2P: Received review request from peer.\n");
+            in_port_t peer_port = ntohs(*(in_port_t*)msg->payload);
+            fprintf(stdout, "P2P: Received review request from peer on port %d.\n", peer_port);
 
-            struct Message response = {
-                .type = MSG_DONE_REVIEW,
-                .payload_length = 0,
-                .payload = NULL,
-            };
+            p2p_send_done_review(peer_port);
 
-            send_message(fd, &response);
-
-            break;
+            break; 
         }
 
         case MSG_DONE_REVIEW: {
-            fprintf(stdout, "P2P: Received done review from peer.\n");
+            in_port_t peer_port = ntohs(*(in_port_t*)msg->payload);
+            fprintf(stdout, "P2P: Received DONE_REVIEW from peer on port %d.\n", peer_port);
 
             remaining_acks--;
 
@@ -58,7 +47,7 @@ int handle_peer_message(struct Server* server, int fd, struct Message* msg) {
     return -1;
 }
 
-int handle_peer(struct Server* server, void* args) {
+int handle_peer(void* args) {
     int fd = *(int*) args;
 
     // Per i peer non sono definiti messaggi con payload più grandi di 4 byte
@@ -74,7 +63,7 @@ int handle_peer(struct Server* server, void* args) {
         return -1;
     }
 
-    return handle_peer_message(server, fd, &msg);
+    return handle_peer_message(&msg);
 }
 
 void* p2p_server_function(void* arg) {
@@ -82,7 +71,7 @@ void* p2p_server_function(void* arg) {
 
     struct ServerConfig config = {
         .port = utente_get_port(),
-        .new_client_handler = handle_new_peer,
+
         .client_handler = handle_peer,
         .stdin_handler = NULL,
     };

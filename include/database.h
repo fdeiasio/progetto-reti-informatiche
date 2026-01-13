@@ -5,8 +5,8 @@
 
 enum UserStatus {
     USER_STATE_IDLE,
-    USER_STATE_WAITING_ACK,
-    USER_STATE_WORKING,
+    USER_STATE_ACTIVE,
+    USER_STATE_PINGED,
 };
 
 struct User {
@@ -15,6 +15,7 @@ struct User {
     
     enum UserStatus status;
     int card_id;
+    time_t last_ping;
 
     struct User* next;
 };
@@ -30,7 +31,7 @@ struct Card {
     enum CardStatus status;
     char text[256];
     int user;
-    uint32_t timestamp;
+    time_t timestamp;
 
     struct Card* next;
 };
@@ -68,15 +69,27 @@ extern int database_get_user_list(in_port_t** user_ports);
 
 extern int database_get_next_user_port();
 
-extern void database_reset_user_iterator();
-
 extern int database_get_port_from_fd(int fd);
 
 extern int database_get_fd_from_port(in_port_t port);
 
 extern void database_user_set_status(in_port_t user_id, enum UserStatus status);
 
+extern enum UserStatus database_user_get_status(in_port_t user_id);
+
 extern void database_user_assign_card(in_port_t user_id, int card_id);
+
+extern void database_user_set_pending(int fd);
+
+extern int database_get_pending_user_fd();
+
+extern void database_user_clear_pending();
+
+extern void database_user_set_ping(in_port_t user_id);
+
+extern void database_user_clear_ping(in_port_t user_id);
+
+extern int database_user_get_timed_out(in_port_t** user_ports, int timeout);
 
 extern void database_print_users();
 
@@ -92,6 +105,12 @@ extern int database_card_todo(in_port_t user_id);
 extern int database_get_next_todo_card();
 
 extern int database_card_get_text(int card_id, char* buffer, size_t buffer_size);
+
+extern in_port_t database_card_get_user(int card_id);
+
+extern void database_card_reset_timestamp(in_port_t user_id);
+
+extern int database_card_get_timed_out(int** card_ids, int timeout);
 
 extern void database_print_cards();
 

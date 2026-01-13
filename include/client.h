@@ -8,7 +8,7 @@
  * Viene usato per implementare il client dell'applicazione utente.                 * 
  * ================================================================================ */
 
- 
+
 // Forward declaration per la callback
 struct Client;
 
@@ -17,7 +17,7 @@ struct Client;
  * Queste funzioni vengono chiamate in automatico dal client 
  * quando si verificano certi eventi. 
  */
-typedef int (*ClientCallback)(struct Client*);
+typedef int (*ClientCallback)(void*);
 
 /**
  * Struttura che rappresenta il client.

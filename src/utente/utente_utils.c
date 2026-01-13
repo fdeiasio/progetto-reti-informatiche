@@ -4,7 +4,7 @@
 #include "../../include/utente_state.h"
 #include "../../include/protocol.h"
 
-void send_server_hello(struct Client* client) {
+void send_server_hello(int server_fd) {
     in_port_t port_network = htons(utente_get_port());
     struct Message msg = {
         .type = MSG_HELLO,
@@ -12,7 +12,7 @@ void send_server_hello(struct Client* client) {
         .payload = &port_network,
     };
 
-    if (send_message(client->server_socket, &msg) < 0) {
+    if (send_message(server_fd, &msg) < 0) {
         fprintf(stderr, "Error: Could not send HELLO message to server.\n");
         return;
     } 
@@ -20,14 +20,14 @@ void send_server_hello(struct Client* client) {
     fprintf(stdout, "Sent HELLO message to server\n");
 }
 
-void send_server_card_ack(struct Client* client) {
+void send_server_card_ack(int server_fd) {
     struct Message msg = {
         .type = MSG_ACK_CARD,
         .payload_length = 0,
         .payload = NULL,
     };
 
-    if (send_message(client->server_socket, &msg) < 0) {
+    if (send_message(server_fd, &msg) < 0) {
         fprintf(stderr, "Error: Could not send ACK_CARD message to server.\n");
         return;
     } 
@@ -64,4 +64,14 @@ void send_p2p_user_list() {
     }
 
     close(p2p_socket);
+}
+
+void send_pong_server(int server_fd) {
+    struct Message msg = {
+        .type = MSG_PONG_LAVAGNA,
+        .payload_length = 0,
+        .payload = NULL,
+    };
+
+    send_message(server_fd, &msg);
 }

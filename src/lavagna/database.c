@@ -248,6 +248,7 @@ int database_get_next_user_port() {
     }
     
     for (struct User* curr = start; curr != NULL; curr = curr->next) {
+        fprintf(stderr, "Checking user port %d with status %d\n", curr->port, curr->status);
         if (curr->status == USER_STATE_IDLE) {
             last_chosen_user = curr;
             return curr->port;
@@ -255,6 +256,7 @@ int database_get_next_user_port() {
     }
 
     for (struct User* curr = db->users; curr != start; curr = curr->next) {
+        fprintf(stderr, "Checking user port %d with status %d\n", curr->port, curr->status);
         if (curr->status == USER_STATE_IDLE) {
             last_chosen_user = curr;
             return curr->port;
@@ -271,12 +273,92 @@ void database_user_set_status(in_port_t user_id, enum UserStatus status) {
     user->status = status;
 }
 
+enum UserStatus database_user_get_status(in_port_t user_id) {
+    struct Database* db = &database;
+
+    struct User* user = find_user_in_list(db->users, user_id);
+
+    return user->status;
+}
+
 void database_user_assign_card(in_port_t user_id, int card_id) {
     struct Database* db = &database;
 
     struct User* user = find_user_in_list(db->users, user_id);
 
     user->card_id = card_id;
+}
+
+static struct User* pending_user = NULL;
+
+void database_user_set_pending(int fd) {
+    struct Database* db = &database;
+
+    for (struct User* curr = db->users; curr != NULL; curr = curr->next) {
+        if (curr->fd == fd) {
+            pending_user = curr;
+            return;
+        }
+    }
+}
+
+int database_get_pending_user_fd() {
+    if (pending_user) {
+        return pending_user->fd;
+    }
+    return -1;
+}
+
+void database_user_clear_pending() {
+    if (pending_user) {
+        pending_user = NULL;
+    }
+}
+
+void database_user_set_ping(in_port_t user_id) {
+    struct Database* db = &database;
+
+    struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
+        return;
+    }
+
+    user->status = USER_STATE_PINGED;
+    user->last_ping = time(NULL);
+}
+
+void database_user_clear_ping(in_port_t user_id) {
+    struct Database* db = &database;
+
+    struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
+        return;
+    }
+
+    user->status = USER_STATE_ACTIVE;
+    user->last_ping = 0;
+}
+
+int database_user_get_timed_out(in_port_t** user_ports, int timeout) {
+    struct Database* db = &database;
+    int count = 0;
+    time_t now = time(NULL);
+
+    *user_ports = (in_port_t*)malloc(db->num_users * sizeof(in_port_t));
+    if (!*user_ports) {
+        return 0;
+    }
+
+    for (struct User* curr = db->users; curr != NULL; curr = curr->next) {
+        if (curr->status == USER_STATE_PINGED) {
+            double diff = difftime(now, curr->last_ping);
+            if (diff >= timeout) {
+                (*user_ports)[count++] = curr->port;
+            }
+        }
+    }
+
+    return count;
 }
 
 void database_print_users() {
@@ -339,6 +421,7 @@ int database_card_doing(in_port_t user_id) {
 
     card->status = CARD_STATUS_DOING;
     card->user = user_id;
+    card->timestamp = time(NULL);
     append_card(&db->lavagna.doing, card);
 
     return 0;
@@ -366,6 +449,7 @@ int database_card_done(in_port_t user_id) {
     user->card_id = -1;
 
     card->status = CARD_STATUS_DONE;
+    card->timestamp = time(NULL);
     append_card(&db->lavagna.done, card);
 
     return 0;
@@ -391,6 +475,7 @@ int database_card_todo(in_port_t user_id) {
 
     card->status = CARD_STATUS_TODO;
     card->user = 0;
+    card->timestamp = 0;
     append_card(&db->lavagna.todo, card);
 
     return 0;
@@ -421,6 +506,56 @@ int database_card_get_text(int card_id, char* buffer, size_t buffer_size) {
     buffer[buffer_size - 1] = '\0';
 
     return 0;
+}
+
+in_port_t database_card_get_user(int card_id) {
+    struct Card* card = database_find_card(card_id);
+    if (!card) {
+        return -1;
+    }
+
+    return card->user;
+}
+
+void database_card_reset_timestamp(in_port_t user_id) {
+    struct Database* db = &database;
+
+    struct User* user = find_user_in_list(db->users, user_id);
+    if (!user) {
+        return;
+    }
+
+    int card_id = user->card_id;
+    if (card_id == -1) {
+        return;
+    }
+
+    struct Card* card = find_card_in_list(db->lavagna.doing, card_id);
+    if (!card) {
+        return;
+    }
+
+    card->timestamp = time(NULL);
+}
+
+int database_card_get_timed_out(int** card_ids, int timeout) {
+    struct Database* db = &database;
+    int count = 0;
+    time_t now = time(NULL);
+
+    *card_ids = (int*)malloc(db->lavagna.num_cards * sizeof(int));
+    if (!*card_ids) {
+        return 0;
+    }
+
+    for (struct Card* curr = db->lavagna.doing; curr != NULL; curr = curr->next) {
+        double diff = difftime(now, curr->timestamp);
+        if (diff >= timeout) {
+            (*card_ids)[count++] = curr->id;
+        }
+    }
+
+    return count;
 }
 
 void database_print_cards() {

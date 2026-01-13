@@ -18,7 +18,7 @@ struct Server;
  * Prende in input il server e un puntatore a argomenti 
  * opzionali (di solito l'fd del client).
  */
-typedef int (*ServerCallback)(struct Server*, void*);
+typedef int (*ServerCallback)(void*);
 
 /**
  * Struttura che rappresenta il server.
@@ -41,7 +41,6 @@ struct Server {
     fd_set master_set;
     int max_fd;
 
-    ServerCallback new_client_handler;
     ServerCallback client_handler;
     ServerCallback stdin_handler;
 };
@@ -55,7 +54,6 @@ struct Server {
 struct ServerConfig {
     in_port_t port;
 
-    ServerCallback new_client_handler;
     ServerCallback client_handler;
     ServerCallback stdin_handler;
 };

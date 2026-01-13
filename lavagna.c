@@ -12,14 +12,7 @@ void signal_handler(int signum) {
     active = 0;
 }
 
-int handle_new_client(struct Server* server, void* args) {
-    
-    fprintf(stdout, "New client connected\n");
-
-    return 0;
-}
-
-int handle_client_message(struct Server* server, int fd, struct Message* msg) {
+int handle_client_message(int fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO: {
             in_port_t user_port = ntohs(*(in_port_t*) msg->payload);
@@ -27,6 +20,12 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
 
             database_add_user(fd, user_port);
             database_print_users();
+
+            int pending_fd = database_get_pending_user_fd();
+            if (pending_fd != -1) {
+                send_user_list(pending_fd);
+                database_user_clear_pending();
+            }
 
             assign_card();
             break;
@@ -50,14 +49,17 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
                 database_get_port_from_fd(fd)
             );
 
+            if (database_get_num_users() == 1) {
+                database_user_set_pending(fd);
+                break;
+            }
+
             send_user_list(fd);
             break;
 
         case MSG_ACK_CARD: {
             int user_port = database_get_port_from_fd(fd);
             fprintf(stdout, "Received ACK_CARD message from user on port %d\n", user_port);
-
-            database_user_set_status(user_port, USER_STATE_WORKING);
 
             database_card_doing(user_port);
             database_print_cards();
@@ -80,12 +82,17 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
             int user_port = database_get_port_from_fd(fd);
             fprintf(stdout, "Received QUIT message from user on port %d\n", user_port);
 
-            database_card_todo(user_port);
-            database_remove_user(user_port);
-
-            assign_card();
+            disconnect_user(user_port);
             break;
         }
+        case MSG_PONG_LAVAGNA: {
+            int user_port = database_get_port_from_fd(fd);
+            database_card_reset_timestamp(user_port);
+            database_user_clear_ping(user_port);
+
+            break;
+        }
+
         default:
             fprintf(stderr, "Error: Unknown message type from user %d\n", fd);
             break;
@@ -94,8 +101,8 @@ int handle_client_message(struct Server* server, int fd, struct Message* msg) {
     return 0;
 }
 
-int handle_client(struct Server* server, void* args) {
-    int fd = *(int*) args;
+int handle_client(void* args) {
+    int fd = *(int*)args;
 
     char buffer[MAX_PAYLOAD_SIZE];
     memset(buffer, 0, MAX_PAYLOAD_SIZE);
@@ -116,18 +123,20 @@ int handle_client(struct Server* server, void* args) {
 
             assign_card();
         } 
-        else {
-            fprintf(stdout, "Unknown client disconnected\n");
-        }
         
         database_print_users();
         return -1;
     }
 
-    return handle_client_message(server, fd, &msg);
+    if (database_get_port_from_fd(fd) == -1 && msg.type != MSG_HELLO) {
+        fprintf(stderr, "Error: Received message from unknown client\n");
+        return -1;
+    }
+
+    return handle_client_message(fd, &msg);
 }
 
-int handle_stdin_message(struct Server* server, struct Message* msg) {
+int handle_stdin_message(struct Message* msg) {
     switch (msg->type) {
         case MSG_SHOW_UTENTI:
             database_print_users();
@@ -137,6 +146,29 @@ int handle_stdin_message(struct Server* server, struct Message* msg) {
             database_print_cards();
             break;
 
+        case MSG_PING_USER:
+            if (msg->payload_length == 0) {
+                fprintf(stderr, "Error: CREATE_CARD requires an argument.\n");
+                return 0;
+            }
+
+            char buffer[4];
+            memcpy(buffer, msg->payload, 4);
+
+            in_port_t user_port = atoi(buffer);
+
+            int fd = database_get_fd_from_port(user_port);
+            if (fd == -1) {
+                fprintf(stderr, "Error: No user found on port %d.\n", user_port);
+                return 0;
+            }
+
+            if (send_user_ping(fd) < 0) {
+                fprintf(stderr, "Can't send ping, user is not working\n");
+                return 0;
+            }
+            break;
+
         default:
             fprintf(stderr, "Error: Unknown command.\n");
             break;
@@ -144,7 +176,7 @@ int handle_stdin_message(struct Server* server, struct Message* msg) {
     return 0;
 }
 
-int handle_stdin(struct Server* server, void* args) {
+int handle_stdin(void* args) {
     (void) args;
 
     char buffer[MAX_PAYLOAD_SIZE];
@@ -157,7 +189,7 @@ int handle_stdin(struct Server* server, void* args) {
         return 0;
     }
 
-    return handle_stdin_message(server, &msg);
+    return handle_stdin_message(&msg);
 }
 
 int main() {
@@ -165,7 +197,7 @@ int main() {
 
     struct ServerConfig config = {
         .port = SERVER_PORT,
-        .new_client_handler = handle_new_client,
+        
         .client_handler = handle_client,
         .stdin_handler = handle_stdin,
     };
@@ -185,8 +217,11 @@ int main() {
     }
 
     fprintf(stdout, "Lavagna server started on port %d\n", SERVER_PORT);
-    while(active && server_run(lavagna) == 0)
-        ;
+    while(active && server_run(lavagna) == 0) {
+        if (time(NULL) % TIMEOUT_CHECK_PERIOD == 0) {
+            check_timeout();
+        }
+    }
 
     server_shutdown(lavagna);
     database_cleanup();

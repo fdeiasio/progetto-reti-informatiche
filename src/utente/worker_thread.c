@@ -2,7 +2,7 @@
 #include "../../include/thread.h"
 #include "../../include/utente_state.h"
 
-#define MAX_SLEEP 10
+#define MAX_SLEEP 20
 
 /**
  * Il thread worker simula il lavoro sulla card

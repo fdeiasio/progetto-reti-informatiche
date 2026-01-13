@@ -77,14 +77,16 @@ int client_listen(struct Client* client) {
         return -1;
     }
 
+    int server_fd = client->server_socket;
+
     if (FD_ISSET(STDIN_FILENO, &read_fds)) {
-        if (client->stdin_handler && client->stdin_handler(client) < 0) {
+        if (client->stdin_handler && client->stdin_handler(&server_fd) < 0) {
             return -1;
         }
     }
 
     if (FD_ISSET(client->server_socket, &read_fds)) {
-        if (client->server_handler && client->server_handler(client) < 0) {
+        if (client->server_handler && client->server_handler(&server_fd) < 0) {
             return -1;
         }
     }
