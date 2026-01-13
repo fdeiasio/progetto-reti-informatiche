@@ -4,8 +4,9 @@
 #include "../../include/utente_state.h"
 #include "../../include/protocol.h"
 
-void send_server_hello(int server_fd) {
+int send_server_hello(int server_fd) {
     in_port_t port_network = htons(utente_get_port());
+
     struct Message msg = {
         .type = MSG_HELLO,
         .payload_length = sizeof(port_network),
@@ -13,14 +14,13 @@ void send_server_hello(int server_fd) {
     };
 
     if (send_message(server_fd, &msg) < 0) {
-        fprintf(stderr, "Error: Could not send HELLO message to server.\n");
-        return;
+        return -1;
     } 
 
-    fprintf(stdout, "Sent HELLO message to server\n");
+    return 0;
 }
 
-void send_server_card_ack(int server_fd) {
+int send_server_card_ack(int server_fd) {
     struct Message msg = {
         .type = MSG_ACK_CARD,
         .payload_length = 0,
@@ -28,18 +28,30 @@ void send_server_card_ack(int server_fd) {
     };
 
     if (send_message(server_fd, &msg) < 0) {
-        fprintf(stderr, "Error: Could not send ACK_CARD message to server.\n");
-        return;
+        return -1;
     } 
 
-    fprintf(stdout, "Sent ACK_CARD message to server\n");
+    return 0;
 }
 
-void send_p2p_user_list() {
+int send_server_pong(int server_fd) {
+    struct Message msg = {
+        .type = MSG_PONG_LAVAGNA,
+        .payload_length = 0,
+        .payload = NULL,
+    };
+
+    if (send_message(server_fd, &msg) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+int send_p2p_user_list() {
     int p2p_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (p2p_socket < 0) {
-        fprintf(stderr, "Error: Could not create P2P socket.\n");
-        return;
+        return -1;
     }
     struct sockaddr_in p2p_addr = {
         .sin_family = AF_INET,
@@ -48,11 +60,11 @@ void send_p2p_user_list() {
     };
 
     if (connect(p2p_socket, (struct sockaddr *)&p2p_addr, sizeof(p2p_addr)) < 0) {
-        fprintf(stderr, "Error: Could not connect to P2P server.\n");
         close(p2p_socket);
-        return;
+        return -1;
     }
 
+    // Il payload è nella struttura globale utente
     struct Message msg = {
         .type = MSG_SEND_USER_LIST,
         .payload_length = 0,
@@ -60,18 +72,9 @@ void send_p2p_user_list() {
     };
 
     if (send_message(p2p_socket, &msg) < 0) {
-        fprintf(stderr, "Error: Could not send user list to P2P server.\n");
+        close(p2p_socket);
+        return -1;
     }
 
     close(p2p_socket);
-}
-
-void send_pong_server(int server_fd) {
-    struct Message msg = {
-        .type = MSG_PONG_LAVAGNA,
-        .payload_length = 0,
-        .payload = NULL,
-    };
-
-    send_message(server_fd, &msg);
 }

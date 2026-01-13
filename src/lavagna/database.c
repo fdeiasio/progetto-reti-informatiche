@@ -273,6 +273,7 @@ int database_user_assign_card(in_port_t user_id, int card_id) {
     }
 
     user->assigned_card_id = card_id;
+    user->status = USER_STATUS_ACTIVE;
 
     return 0;
 }

@@ -5,6 +5,6 @@
 
 int p2p_broadcast_review_request();
 
-void p2p_send_done_review(int peer_port);
+int p2p_send_done_review(int peer_port);
 
 #endif // P2P_UTILS_H

@@ -4,10 +4,8 @@
 
 #define MAX_SLEEP 20
 
-/**
- * Il thread worker simula il lavoro sulla card
- * dormendo per un tempo casuale tra 1 e MAX_SLEEP secondi.
- */
+// Thread che simula il lavoro sulla card
+
 void* worker_thread_function(void* arg) {
     (void) arg;
     

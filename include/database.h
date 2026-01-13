@@ -108,7 +108,7 @@ extern int database_user_set_status(in_port_t user_id, enum UserStatus status);
 // Ritorna USER_STATUS_ERROR se l'utente non esiste
 extern enum UserStatus database_user_get_status(in_port_t user_id);
 
-// Assegna una card ad un utente
+// Assegna una card ad un utente e imposta il suo stato ad ACTIVE
 // Ritorna 0 se l'assegnazione è avvenuta con successo, -1 altrimenti
 extern int database_user_assign_card(in_port_t user_id, int card_id);
 

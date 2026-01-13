@@ -104,7 +104,7 @@ int handle_server_message(int server_fd, struct Message* msg) {
         case MSG_PING_USER:
             fprintf(stdout, "Received PING_USER from server.\n");
             
-            send_pong_server(server_fd);
+            send_server_pong(server_fd);
             
             break;
 
