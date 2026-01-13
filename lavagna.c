@@ -21,7 +21,7 @@ int handle_client_message(int fd, struct Message* msg) {
             database_add_user(fd, user_port);
             database_print_users();
 
-            int pending_fd = database_get_pending_user_fd();
+            int pending_fd = database_get_pending_user_socket();
             if (pending_fd != -1) {
                 send_user_list(pending_fd);
                 database_user_clear_pending();
@@ -32,7 +32,7 @@ int handle_client_message(int fd, struct Message* msg) {
         }
 
         case MSG_CREATE_CARD: {
-            int user_port = database_get_port_from_fd(fd);
+            int user_port = database_get_port_from_socket(fd);
             fprintf(stdout, "Received CREATE_CARD message from user on port %d\n", user_port);
 
             char* card_text = (char*) msg->payload;
@@ -46,7 +46,7 @@ int handle_client_message(int fd, struct Message* msg) {
 
         case MSG_REQUEST_USER_LIST:
             fprintf(stdout, "Received REQUEST_USER_LIST message from user on port %d\n", 
-                database_get_port_from_fd(fd)
+                database_get_port_from_socket(fd)
             );
 
             if (database_get_num_users() == 1) {
@@ -58,7 +58,7 @@ int handle_client_message(int fd, struct Message* msg) {
             break;
 
         case MSG_ACK_CARD: {
-            int user_port = database_get_port_from_fd(fd);
+            int user_port = database_get_port_from_socket(fd);
             fprintf(stdout, "Received ACK_CARD message from user on port %d\n", user_port);
 
             database_card_doing(user_port);
@@ -67,11 +67,11 @@ int handle_client_message(int fd, struct Message* msg) {
             break;
 
         case MSG_CARD_DONE: {
-            int user_port = database_get_port_from_fd(fd);
+            int user_port = database_get_port_from_socket(fd);
             fprintf(stdout, "Received CARD_DONE message from user on port %d\n", user_port);
 
             database_card_done(user_port);
-            database_user_set_status(user_port, USER_STATE_IDLE);
+            database_user_set_status(user_port, USER_STATUS_IDLE);
 
             assign_card();
             database_print_cards();
@@ -79,14 +79,14 @@ int handle_client_message(int fd, struct Message* msg) {
         }
 
         case MSG_QUIT: {
-            int user_port = database_get_port_from_fd(fd);
+            int user_port = database_get_port_from_socket(fd);
             fprintf(stdout, "Received QUIT message from user on port %d\n", user_port);
 
             disconnect_user(user_port);
             break;
         }
         case MSG_PONG_LAVAGNA: {
-            int user_port = database_get_port_from_fd(fd);
+            int user_port = database_get_port_from_socket(fd);
             database_card_reset_timestamp(user_port);
             database_user_clear_ping(user_port);
 
@@ -114,7 +114,7 @@ int handle_client(void* args) {
 
     ssize_t bytes_received = receive_message(fd, &msg);
     if (bytes_received <= 0) {
-        int port = database_get_port_from_fd(fd);
+        int port = database_get_port_from_socket(fd);
 
         if (port != -1) {
             fprintf(stdout, "Client %d disconnected\n", port);
@@ -128,7 +128,7 @@ int handle_client(void* args) {
         return -1;
     }
 
-    if (database_get_port_from_fd(fd) == -1 && msg.type != MSG_HELLO) {
+    if (database_get_port_from_socket(fd) == 0 && msg.type != MSG_HELLO) {
         fprintf(stderr, "Error: Received message from unknown client\n");
         return -1;
     }
@@ -157,7 +157,7 @@ int handle_stdin_message(struct Message* msg) {
 
             in_port_t user_port = atoi(buffer);
 
-            int fd = database_get_fd_from_port(user_port);
+            int fd = database_get_socket_from_port(user_port);
             if (fd == -1) {
                 fprintf(stderr, "Error: No user found on port %d.\n", user_port);
                 return 0;

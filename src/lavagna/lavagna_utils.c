@@ -7,7 +7,7 @@
 void send_user_list(int fd) {
     in_port_t* user_ports;
 
-    int count = database_get_user_list(&user_ports);
+    int count = database_get_users_list(&user_ports);
     for (int i = 0; i < count; i++) {
         user_ports[i] = htons(user_ports[i]);
     }
@@ -52,14 +52,14 @@ void assign_card() {
         .payload = buffer,
     };
 
-    send_message(database_get_fd_from_port(next_user_port), &msg);
+    send_message(database_get_socket_from_port(next_user_port), &msg);
 
-    database_user_set_status(next_user_port, USER_STATE_ACTIVE);
+    database_user_set_status(next_user_port, USER_STATUS_ACTIVE);
     database_user_assign_card(next_user_port, next_card_id);
 }
 
 int send_user_ping(int fd) {
-    if (database_user_get_status(database_get_port_from_fd(fd)) != USER_STATE_ACTIVE) {
+    if (database_user_get_status(database_get_port_from_socket(fd)) != USER_STATUS_ACTIVE) {
         return -1;
     }
 
@@ -71,9 +71,9 @@ int send_user_ping(int fd) {
 
     send_message(fd, &msg);
 
-    in_port_t user_port = database_get_port_from_fd(fd);
+    in_port_t user_port = database_get_port_from_socket(fd);
     database_user_set_ping(user_port);
-    database_user_set_status(user_port, USER_STATE_PINGED);
+    database_user_set_status(user_port, USER_STATUS_PINGED);
 
     fprintf(stdout, "Sent PING_USER to user on port %d\n", user_port);
 
@@ -108,7 +108,7 @@ static void check_working_timeout() {
         int card_id = timed_out_cards[i];
 
         in_port_t user_port = database_card_get_user(card_id);
-        int user_fd = database_get_fd_from_port(user_port);
+        int user_fd = database_get_socket_from_port(user_port);
         if (user_fd != -1) {
             send_user_ping(user_fd);
         }
@@ -128,7 +128,7 @@ static void check_ping_timeout() {
         in_port_t user_port = timed_out_users[i];
         fprintf(stdout, "User on port %d has timed out after ping. Removing user and reassigning card.\n", user_port);
 
-        int fd = database_get_fd_from_port(user_port);
+        int fd = database_get_socket_from_port(user_port);
         send_user_quit(fd);
 
         disconnect_user(user_port);

@@ -13,32 +13,28 @@ struct Client* client_create(struct ClientConfig config) {
     client->server_addr.sin_addr.s_addr = config.server_ip;
 
     FD_ZERO(&client->master_set);
-
     FD_SET(STDIN_FILENO, &client->master_set);
     client->max_fd = STDIN_FILENO;
 
-    client->server_handler = config.server_handler;
-    client->stdin_handler = config.stdin_handler;
+    client->server_message_callback = config.server_message_callback;
+    client->stdin_message_callback = config.stdin_message_callback;
 
     return client;
 }
 
 int client_connect_to_server(struct Client* client) {
-    fprintf(stdout, "Connecting to server...\n");
-
     client->server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client->server_socket < 0) {
-        fprintf(stderr, "Error: Could not create socket.\n");
         return -1;
     }
 
     if (connect(client->server_socket, (struct sockaddr *)&client->server_addr, sizeof(client->server_addr)) < 0) {
-        fprintf(stderr, "Error: Could not connect to server.\n");
         close(client->server_socket);
         client->server_socket = -1;
         return -1;
     }
 
+    // Aggiungo il server ai descrittori da monitorare
     FD_SET(client->server_socket, &client->master_set);
     if (client->server_socket > client->max_fd) {
         client->max_fd = client->server_socket;
@@ -48,9 +44,10 @@ int client_connect_to_server(struct Client* client) {
 }
 
 void client_destroy(struct Client* client) {
+    // Chiudo la connessione al server prima di liberare il client
     if (client->server_socket != -1) {
-        close(client->server_socket);
         FD_CLR(client->server_socket, &client->master_set);
+        close(client->server_socket);
         client->server_socket = -1;
     }
 
@@ -69,24 +66,23 @@ int client_listen(struct Client* client) {
 
     int activity = select(client->max_fd + 1, &read_fds, NULL, NULL, &timeout);
     if (activity < 0) {
-        if (errno == EINTR) {
-            return -1;
-        }
-
-        fprintf(stderr, "Error: select() failed.\n");
         return -1;
     }
 
+    // Chiamo le callback per stdin e server
+    // Controllo che non siano NULL prima di accerede
+    // Passo il server_fd per permettere la comunicazione col server
+    // Se ritornano -1 richiedo la terminazione del client
     int server_fd = client->server_socket;
 
     if (FD_ISSET(STDIN_FILENO, &read_fds)) {
-        if (client->stdin_handler && client->stdin_handler(&server_fd) < 0) {
+        if (client->stdin_message_callback && client->stdin_message_callback(&server_fd) < 0) {
             return -1;
         }
     }
 
     if (FD_ISSET(client->server_socket, &read_fds)) {
-        if (client->server_handler && client->server_handler(&server_fd) < 0) {
+        if (client->server_message_callback && client->server_message_callback(&server_fd) < 0) {
             return -1;
         }
     }

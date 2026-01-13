@@ -157,8 +157,8 @@ int main(int argc, char *argv[]) {
     struct ClientConfig config = {
         .server_port = SERVER_PORT,
 
-        .server_handler = handle_server,
-        .stdin_handler = handle_stdin,
+        .server_message_callback = handle_server,
+        .stdin_message_callback = handle_stdin,
     };
     inet_pton(AF_INET, LOCALHOST, &config.server_ip);
 
