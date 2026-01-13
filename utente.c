@@ -75,7 +75,6 @@ int handle_server_message(int server_fd, struct Message* msg) {
             }
 
             utente_allocate_user_list(&user_ports, num_users);
-            utente_show_user_list();
 
             if (utente_get_state() == STATE_WAITING_UL) {
                 utente_update_state(STATE_WAITING_ACK);
