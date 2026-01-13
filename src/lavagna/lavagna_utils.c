@@ -117,6 +117,13 @@ int assign_card() {
 }
 
 void disconnect_user(in_port_t user_port) {
+
+    // Mi assicuro che se il pending si disconnette, non rimanga in pending
+    int socket = database_get_socket_from_port(user_port);
+    if (database_get_pending_user_socket() == socket) {
+        database_user_clear_pending();
+    }
+
     database_card_todo(user_port);
     database_remove_user(user_port);
 

@@ -13,7 +13,7 @@ int p2p_broadcast_review_request() {
 
     for (int i = 0; i < num_users; i++) {
         if (user_ports[i] == utente_get_port()) {
-            return -1; 
+            continue; 
         }
 
         int peer_socket = socket(AF_INET, SOCK_STREAM, 0);

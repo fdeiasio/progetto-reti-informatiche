@@ -18,7 +18,10 @@ void signal_handler(int signum) {
 int handle_stdin_message(int server_fd, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO:
-            send_server_hello(server_fd);
+            if (send_server_hello(server_fd) < 0) {
+                fprintf(stderr, "Error: Could not send HELLO message to server.\n");
+                return -1;
+            }
             break;
 
         case MSG_QUIT:
@@ -31,11 +34,17 @@ int handle_stdin_message(int server_fd, struct Message* msg) {
                 return 0;
             }
 
-            send_message(server_fd, msg);
+            if (send_message(server_fd, msg) < 0) {
+                fprintf(stderr, "Error: Could not send CREATE_CARD message to server.\n");
+                return -1;
+            }
             break;
 
         case MSG_REQUEST_USER_LIST:
-            send_message(server_fd, msg);
+            if (send_message(server_fd, msg) < 0) {
+                fprintf(stderr, "Error: Could not send REQUEST_USER_LIST message to server.\n");
+                return -1;
+            }
             break;
 
         default:
@@ -74,7 +83,10 @@ int handle_server_message(int server_fd, struct Message* msg) {
                 user_ports[i] = ntohs(user_ports[i]);
             }
 
-            utente_allocate_user_list(&user_ports, num_users);
+            if (utente_allocate_user_list(&user_ports, num_users) < 0) {
+                fprintf(stderr, "Error: Could not allocate memory for user list.\n");
+                return -1;
+            }
 
             if (utente_get_state() == STATE_WAITING_UL) {
                 utente_update_state(STATE_WAITING_ACK);
@@ -96,15 +108,24 @@ int handle_server_message(int server_fd, struct Message* msg) {
             utente_set_card_id(card_id);
 
             utente_update_state(STATE_WORKING);
-            utente_start_worker(worker_thread_function);
+            if (utente_start_worker(worker_thread_function) < 0) {
+                fprintf(stderr, "Error: Could not start worker thread.\n");
+                return -1;
+            }
 
-            send_server_card_ack(server_fd);
+            if (send_server_card_ack(server_fd) < 0) {
+                fprintf(stderr, "Error: Could not send CARD_ACK to server.\n");
+                return -1;
+            }
             break;
 
         case MSG_PING_USER:
             fprintf(stdout, "Received PING_USER from server.\n");
             
-            send_server_pong(server_fd);
+            if (send_server_pong(server_fd) < 0) {
+                fprintf(stderr, "Error: Could not send PONG to server.\n");
+                return -1;
+            }
             
             break;
 
@@ -170,39 +191,57 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    utente_start_p2p(p2p_server_function);
+    fprintf(stdout, "Starting P2P server thread...\n");
+
+    if (utente_start_p2p(p2p_server_function) < 0) {
+        fprintf(stderr, "Error: Could not start P2P server thread.\n");
+        client_destroy(client);
+        utente_cleanup();
+        exit(1);
+    }
 
     while (running && utente_get_state() != STATE_SHUTTING_DOWN) {
         enum UtenteState current_state = utente_get_state();
 
         switch (current_state) {
             case STATE_STARTING_P2P:
-                // Waiting for P2P server to start
+                // Aspetto che il server P2P sia avviato
                 break;
 
             case STATE_CONNECTING:
-                client_connect_to_server(client);
+                // Mi connetto al server centrale e invio il messaggio HELLO
+                if (client_connect_to_server(client) < 0) {
+                    fprintf(stderr, "Error: Could not connect to server.\n");
+                    utente_update_state(STATE_DISCONNECTING);
+                    break;
+                }
 
-                send_server_hello(client->server_socket);
+                fprintf(stdout, "Sending HELLO message to server.\n");
+
+                if (send_server_hello(client->server_socket) < 0) {
+                    fprintf(stderr, "Error: Could not send HELLO message to server.\n");
+                    utente_update_state(STATE_DISCONNECTING);
+                    break;
+                }
 
                 utente_update_state(STATE_IDLE);
                 break;
 
             case STATE_IDLE:
-
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
 
             case STATE_WORKING:
-
+                // Il thread worker sta lavorando
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
                 }
                 break;
 
             case STATE_REQUESTING_UL:
+                // Il thread worker ha finito e ora chiedo la user list al server
                 utente_wait_for_worker_shutdown();
                 
                 struct Message msg = {
@@ -211,12 +250,17 @@ int main(int argc, char *argv[]) {
                     .payload = NULL,
                 };
 
-                send_message(client->server_socket, &msg);
+                if (send_message(client->server_socket, &msg) < 0) {
+                    fprintf(stderr, "Error: Could not send REQUEST_USER_LIST message to server.\n");
+                    utente_update_state(STATE_DISCONNECTING);
+                    break;
+                }
 
                 utente_update_state(STATE_WAITING_UL);
                 break;
 
             case STATE_WAITING_UL:
+                // Aspetto la user list dal server
 
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
@@ -224,6 +268,7 @@ int main(int argc, char *argv[]) {
                 break;
 
             case STATE_WAITING_ACK:
+                // Aspetto che il server p2p riceva un ack dai peer
 
                 if (client_listen(client) < 0) {
                     utente_update_state(STATE_DISCONNECTING);
@@ -231,6 +276,7 @@ int main(int argc, char *argv[]) {
                 break;
 
             case STATE_DONE_WORK:
+                // Mando il card done e torno in idle
                 fprintf(stdout, "Review completed.\n");
                 
                 utente_set_card_id(-1);
@@ -240,18 +286,25 @@ int main(int argc, char *argv[]) {
                     .payload_length = 0,
                     .payload = NULL,
                 };
-                send_message(client->server_socket, &done_msg);
+
+                if (send_message(client->server_socket, &done_msg) < 0) {
+                    fprintf(stderr, "Error: Could not send CARD_DONE message to server.\n");
+                    utente_update_state(STATE_DISCONNECTING);
+                    break;
+                }
 
                 utente_update_state(STATE_IDLE);
                 break;
             case STATE_DISCONNECTING:
-                // Wait for shutdown signal from p2p thread
+                // Aspetto il segnale di spegnimento dal thread p2p
                 break;
 
             default:
                 break;
         }
     }
+
+    fprintf(stdout, "Shutting down...\n");
 
     utente_wait_for_p2p_shutdown();
 

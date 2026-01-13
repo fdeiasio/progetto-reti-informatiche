@@ -12,18 +12,22 @@ void signal_handler(int signum) {
     active = 0;
 }
 
-int handle_client_message(int fd, struct Message* msg) {
+int handle_client_message(int socket, struct Message* msg) {
     switch (msg->type) {
         case MSG_HELLO: {
             in_port_t user_port = ntohs(*(in_port_t*) msg->payload);
             fprintf(stdout, "Received HELLO message from user on port %d\n", user_port);
 
-            database_add_user(fd, user_port);
+            if (database_add_user(socket, user_port) < 0) {
+                fprintf(stderr, "Error: Could not add user on port %d to database.\n", user_port);
+                return -1;
+            }
+
             database_print_users();
 
-            int pending_fd = database_get_pending_user_socket();
-            if (pending_fd != -1) {
-                send_user_list(pending_fd);
+            int pending_socket = database_get_pending_user_socket();
+            if (pending_socket != -1) {
+                send_user_list(pending_socket);
                 database_user_clear_pending();
             }
 
@@ -32,7 +36,7 @@ int handle_client_message(int fd, struct Message* msg) {
         }
 
         case MSG_CREATE_CARD: {
-            int user_port = database_get_port_from_socket(fd);
+            int user_port = database_get_port_from_socket(socket);
             fprintf(stdout, "Received CREATE_CARD message from user on port %d\n", user_port);
 
             char* card_text = (char*) msg->payload;
@@ -44,49 +48,70 @@ int handle_client_message(int fd, struct Message* msg) {
             break;
         }
 
-        case MSG_REQUEST_USER_LIST:
-            fprintf(stdout, "Received REQUEST_USER_LIST message from user on port %d\n", 
-                database_get_port_from_socket(fd)
-            );
+        case MSG_REQUEST_USER_LIST: {
+            in_port_t user_port = database_get_port_from_socket(socket);
+            fprintf(stdout, "Received REQUEST_USER_LIST message from user on port %d\n", user_port);
 
             if (database_get_num_users() == 1) {
-                database_user_set_pending(fd);
+                database_user_set_pending(socket);
                 break;
             }
 
-            send_user_list(fd);
-            break;
+            if (send_user_list(socket) < 0) {
+                fprintf(stderr, "Error: Could not send user list to user on port %d.\n", user_port);
 
+                send_user_quit(socket);
+                disconnect_user(user_port);
+
+                return -1;
+            }
+
+            break;
+        }
         case MSG_ACK_CARD: {
-            int user_port = database_get_port_from_socket(fd);
+            int user_port = database_get_port_from_socket(socket);
             fprintf(stdout, "Received ACK_CARD message from user on port %d\n", user_port);
 
-            database_card_doing(user_port);
+            if (database_card_doing(user_port) < 0) {
+                fprintf(stderr, "Error: Could not mark card as DOING for user on port %d.\n", user_port);
+                
+                send_user_quit(socket);
+                disconnect_user(user_port);
+                return -1;
+            }
+
             database_print_cards();
         }   
             break;
 
         case MSG_CARD_DONE: {
-            int user_port = database_get_port_from_socket(fd);
+            int user_port = database_get_port_from_socket(socket);
             fprintf(stdout, "Received CARD_DONE message from user on port %d\n", user_port);
 
-            database_card_done(user_port);
-            database_user_set_status(user_port, USER_STATUS_IDLE);
+            if (database_card_done(user_port) < 0) {
+                fprintf(stderr, "Error: Could not mark card as DONE for user on port %d.\n", user_port);
+                
+                send_user_quit(socket);
+                disconnect_user(user_port);
+                return -1;
+            }
 
             assign_card();
+
             database_print_cards();
             break;
         }
 
         case MSG_QUIT: {
-            int user_port = database_get_port_from_socket(fd);
+            int user_port = database_get_port_from_socket(socket);
             fprintf(stdout, "Received QUIT message from user on port %d\n", user_port);
 
             disconnect_user(user_port);
             break;
         }
         case MSG_PONG_LAVAGNA: {
-            int user_port = database_get_port_from_socket(fd);
+            int user_port = database_get_port_from_socket(socket);
+
             database_card_reset_timestamp(user_port);
             database_user_clear_ping(user_port);
 
@@ -94,7 +119,7 @@ int handle_client_message(int fd, struct Message* msg) {
         }
 
         default:
-            fprintf(stderr, "Error: Unknown message type from user %d\n", fd);
+            fprintf(stderr, "Error: Unknown message type from user %d\n", socket);
             break;
     }
 
@@ -118,10 +143,7 @@ int handle_client(void* args) {
 
         if (port != -1) {
             fprintf(stdout, "Client %d disconnected\n", port);
-            database_card_todo(port);
-            database_remove_user(port);
-
-            assign_card();
+            disconnect_user(port);
         } 
         
         database_print_users();
@@ -217,6 +239,8 @@ int main() {
     }
 
     fprintf(stdout, "Lavagna server started on port %d\n", SERVER_PORT);
+    database_print_cards();
+
     while(active && server_run(lavagna) == 0) {
         if (time(NULL) % TIMEOUT_CHECK_PERIOD == 0) {
             check_timeout();

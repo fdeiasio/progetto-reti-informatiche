@@ -9,32 +9,38 @@ static int remaining_acks = 0;
 int handle_peer_message(struct Message* msg) {
     switch (msg->type) {
         case MSG_SEND_USER_LIST: {
+            fprintf(stdout, "P2P: Broadcasting review request.\n");
+
             remaining_acks = p2p_broadcast_review_request();
-            
-            if (remaining_acks == 0) {
-                utente_update_state(STATE_DONE_WORK);
+            if (remaining_acks < 1) {
+                // Se in uno stato di errore, spengo il client
+                fprintf(stderr, "P2P: Error broadcasting review request.\n");
+
+                utente_update_state(STATE_SHUTTING_DOWN);
+                break;
             }
+
             break;
         }
 
         case MSG_REVIEW_CARD: {
             in_port_t peer_port = ntohs(*(in_port_t*)msg->payload);
-            fprintf(stdout, "P2P: Received review request from peer on port %d.\n", peer_port);
+            fprintf(stdout, "P2P: Received review request from peer on port %d. Sending DONE_REVIEW...\n", peer_port);
 
             p2p_send_done_review(peer_port);
-
             break; 
         }
 
         case MSG_DONE_REVIEW: {
             in_port_t peer_port = ntohs(*(in_port_t*)msg->payload);
-            fprintf(stdout, "P2P: Received DONE_REVIEW from peer on port %d.\n", peer_port);
-
             remaining_acks--;
+
+            fprintf(stdout, "P2P: Received DONE_REVIEW from peer on port %d. Remaining acks: %d\n", peer_port, remaining_acks);
 
             if (remaining_acks == 0) {
                 utente_update_state(STATE_DONE_WORK);
             }
+
             break;
         }
 
@@ -43,7 +49,7 @@ int handle_peer_message(struct Message* msg) {
             break;
     }
 
-    // Default to close the connection
+    // La connessione viene chiusa di default per evitare sovraccarichi
     return -1;
 }
 

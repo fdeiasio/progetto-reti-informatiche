@@ -6,6 +6,13 @@ struct Database database;
 
 // Funzioni statiche di supporto
 
+static const char* STATUS_TO_STRING[] = {
+    [USER_STATUS_ACTIVE] = "ACTIVE",
+    [USER_STATUS_IDLE] = "IDLE",
+    [USER_STATUS_PINGED] = "PINGED",
+    [USER_STATUS_ERROR] = "ERROR",
+};
+
 // Libera una lista di card
 static void free_card_list(struct Card* head) {
     while (head) {
@@ -398,8 +405,11 @@ void database_print_users() {
         fprintf(stdout, "(no users)\n");
     } else {
         for (struct User* curr = db->users; curr != NULL; curr = curr->next) {
-            fprintf(stdout, "User Port: %d\t Socket: %d\t Status: %d\t Card ID: %d\n", 
-                curr->port, curr->socket, curr->status, curr->assigned_card_id
+            fprintf(stdout, "User Port: %d\t Socket: %d\t Status: %s\t Card ID: %d\n", 
+                curr->port, 
+                curr->socket, 
+                STATUS_TO_STRING[curr->status], 
+                curr->assigned_card_id
             );
         }
     }

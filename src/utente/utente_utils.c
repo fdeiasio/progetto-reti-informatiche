@@ -77,4 +77,6 @@ int send_p2p_user_list() {
     }
 
     close(p2p_socket);
+
+    return 0;
 }
